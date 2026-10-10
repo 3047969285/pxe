@@ -106,8 +106,8 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#03121f;c
  radial-gradient(ellipse at 15% 100%,rgba(16,70,120,.25),transparent 50%),
  radial-gradient(ellipse at 85% 100%,rgba(16,70,120,.25),transparent 50%)}
 .bg::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(64,158,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(64,158,255,.05) 1px,transparent 1px);background-size:46px 46px}
-.wrap{position:relative;z-index:1;min-height:100%;display:flex;flex-direction:column;padding:0 18px 14px}
-.hd{flex:0 0 auto;text-align:center;padding:16px 0 6px;position:relative}
+.wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:0 1.1vw 1.1vh}
+.hd{flex:0 0 auto;text-align:center;padding:1.3vh 0 0.5vh;position:relative}
 .hd h1{font-size:clamp(20px,2.2vw,32px);letter-spacing:6px;font-weight:700;color:#fff;
  text-shadow:0 0 18px rgba(45,140,255,.8),0 0 40px rgba(45,140,255,.4)}
 .hd .deco{height:12px;margin:6px auto 0;max-width:1400px;background:
@@ -119,14 +119,14 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#03121f;c
 .hd .logo{position:absolute;left:14px;top:20px;display:flex;align-items:center;gap:8px}
 .hd .logo .mark{width:34px;height:34px;border-radius:50%;border:2px solid #2f9bff;display:flex;align-items:center;justify-content:center;color:#7fd4ff;font-size:11px;font-weight:700;box-shadow:0 0 12px rgba(47,155,255,.6)}
 .hd .logo span{font-size:12px;color:#8db8dc;letter-spacing:2px;line-height:1.5;text-align:left}
-.kpis{flex:0 0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:10px 0}
-.kpi{position:relative;background:linear-gradient(180deg,rgba(14,44,76,.85),rgba(8,26,46,.85));border:1px solid rgba(64,158,255,.28);padding:12px 4px 10px;text-align:center;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.kpis{flex:0 0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:10px 0}
+.kpi{position:relative;background:linear-gradient(180deg,rgba(14,44,76,.85),rgba(8,26,46,.85));border:1px solid rgba(64,158,255,.28);padding:1.1vh 4px 0.9vh;text-align:center;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
 .kpi::before{content:"";position:absolute;top:0;left:12%;right:12%;height:2px;background:linear-gradient(90deg,transparent,var(--kc,#2f9bff),transparent)}
-.kv{font-size:clamp(15px,1.55vw,28px);font-weight:700;color:var(--kc,#2f9bff);text-shadow:0 0 14px var(--kg,rgba(47,155,255,.5));font-family:"DIN Alternate",Consolas,"Microsoft YaHei",monospace}
-.kl{font-size:11px;color:#7ea6c8;margin-top:5px}
-.main{flex:1;min-height:520px;display:grid;grid-template-columns:26% 1fr 38%;gap:12px}
+.kv{font-size:clamp(14px,1.5vw,26px);font-weight:700;color:var(--kc,#2f9bff);text-shadow:0 0 14px var(--kg,rgba(47,155,255,.5));font-family:"DIN Alternate",Consolas,"Microsoft YaHei",monospace;line-height:1.2}
+.kl{font-size:clamp(10px,0.78vw,12px);color:#7ea6c8;margin-top:0.5vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:26% 1fr 38%;gap:12px;overflow:hidden}
 .col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
-.panel{flex:1;min-height:220px;min-width:0;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(10,34,58,.9),rgba(6,20,38,.92));border:1px solid rgba(64,158,255,.22);position:relative}
+.panel{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(10,34,58,.9),rgba(6,20,38,.92));border:1px solid rgba(64,158,255,.22);position:relative;overflow:hidden}
 .panel::before,.panel::after{content:"";position:absolute;width:14px;height:14px;border-color:#3fa2ff;border-style:solid;z-index:2}
 .panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px}
 .panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
@@ -138,9 +138,9 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#03121f;c
 .chart{position:absolute;inset:0}
 .tbl{position:absolute;inset:0;overflow:auto;padding:0 8px 8px}
 .tbl::-webkit-scrollbar{width:4px}.tbl::-webkit-scrollbar-thumb{background:rgba(64,158,255,.35)}
-table{width:100%;border-collapse:collapse;font-size:11px}
-th{position:sticky;top:0;background:#0d2c4a;color:#7fc3ff;padding:6px 4px;font-weight:600;letter-spacing:1px;border-bottom:1px solid rgba(64,158,255,.35);z-index:1}
-td{padding:5px 4px;text-align:center;color:#a9cbe4;border-bottom:1px dashed rgba(64,158,255,.12);white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-size:clamp(10px,0.78vw,12px)}
+th{position:sticky;top:0;background:#0d2c4a;color:#7fc3ff;padding:0.7vh 4px;font-weight:600;letter-spacing:1px;border-bottom:1px solid rgba(64,158,255,.35);z-index:1}
+td{padding:0.55vh 4px;text-align:center;color:#a9cbe4;border-bottom:1px dashed rgba(64,158,255,.12);white-space:nowrap}
 tr:nth-child(even) td{background:rgba(20,60,100,.15)}
 td.nm{color:#eaf6ff;font-weight:600}
 .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:2px;border:1px solid}
@@ -194,7 +194,7 @@ const hasEC=typeof echarts!=="undefined";
 const AX={axisLine:{lineStyle:{color:"rgba(64,158,255,.35)"}},axisLabel:{color:"#7ea6c8",fontSize:10},axisTick:{show:false},splitLine:{lineStyle:{color:"rgba(64,158,255,.1)"}}};
 const TIP={backgroundColor:"rgba(6,22,40,.95)",borderColor:"rgba(64,158,255,.5)",textStyle:{color:"#cfe6f7",fontSize:12}};
 function mk(id,opt){if(!hasEC){document.getElementById(id).innerHTML='<div style="padding:20px;color:#5d89ad;font-size:12px">图表组件加载失败（需联网加载 ECharts），数据详见右侧明细。</div>';return;}
- const c=echarts.init(document.getElementById(id));c.setOption(opt);addEventListener("resize",()=>c.resize());}
+ const c=echarts.init(document.getElementById(id));c.setOption(opt);setTimeout(()=>c.resize(),80);addEventListener("resize",()=>c.resize());}
 mk("cReason",{tooltip:{...TIP,trigger:"axis",axisPointer:{type:"shadow"}},
  grid:{left:4,right:36,top:8,bottom:2,containLabel:true},
  xAxis:{type:"value",show:false},
@@ -290,8 +290,8 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#03121f;c
  radial-gradient(ellipse at 15% 100%,rgba(16,70,120,.25),transparent 50%),
  radial-gradient(ellipse at 85% 100%,rgba(16,70,120,.25),transparent 50%)}
 .bg::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(64,158,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(64,158,255,.05) 1px,transparent 1px);background-size:46px 46px}
-.wrap{position:relative;z-index:1;min-height:100%;display:flex;flex-direction:column;padding:0 18px 14px}
-.hd{flex:0 0 auto;text-align:center;padding:16px 0 6px;position:relative}
+.wrap{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:0 1.1vw 1.1vh}
+.hd{flex:0 0 auto;text-align:center;padding:1.3vh 0 0.5vh;position:relative}
 .hd h1{font-size:clamp(20px,2.2vw,32px);letter-spacing:6px;font-weight:700;color:#fff;
  text-shadow:0 0 18px rgba(45,140,255,.8),0 0 40px rgba(45,140,255,.4)}
 .hd .deco{height:12px;margin:6px auto 0;max-width:1400px;background:
@@ -303,14 +303,14 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#03121f;c
 .hd .logo{position:absolute;left:14px;top:20px;display:flex;align-items:center;gap:8px}
 .hd .logo .mark{width:34px;height:34px;border-radius:50%;border:2px solid #2f9bff;display:flex;align-items:center;justify-content:center;color:#7fd4ff;font-size:11px;font-weight:700;box-shadow:0 0 12px rgba(47,155,255,.6)}
 .hd .logo span{font-size:12px;color:#8db8dc;letter-spacing:2px;line-height:1.5;text-align:left}
-.kpis{flex:0 0 auto;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:10px 0}
-.kpi{position:relative;background:linear-gradient(180deg,rgba(14,44,76,.85),rgba(8,26,46,.85));border:1px solid rgba(64,158,255,.28);padding:12px 4px 10px;text-align:center;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.kpis{flex:0 0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:10px 0}
+.kpi{position:relative;background:linear-gradient(180deg,rgba(14,44,76,.85),rgba(8,26,46,.85));border:1px solid rgba(64,158,255,.28);padding:1.1vh 4px 0.9vh;text-align:center;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
 .kpi::before{content:"";position:absolute;top:0;left:12%;right:12%;height:2px;background:linear-gradient(90deg,transparent,var(--kc,#2f9bff),transparent)}
-.kv{font-size:clamp(15px,1.55vw,28px);font-weight:700;color:var(--kc,#2f9bff);text-shadow:0 0 14px var(--kg,rgba(47,155,255,.5));font-family:"DIN Alternate",Consolas,"Microsoft YaHei",monospace}
-.kl{font-size:11px;color:#7ea6c8;margin-top:5px}
-.main{flex:1;min-height:520px;display:grid;grid-template-columns:30% 1fr 34%;gap:12px}
+.kv{font-size:clamp(14px,1.5vw,26px);font-weight:700;color:var(--kc,#2f9bff);text-shadow:0 0 14px var(--kg,rgba(47,155,255,.5));font-family:"DIN Alternate",Consolas,"Microsoft YaHei",monospace;line-height:1.2}
+.kl{font-size:clamp(10px,0.78vw,12px);color:#7ea6c8;margin-top:0.5vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:30% 1fr 34%;gap:12px;overflow:hidden}
 .col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
-.panel{flex:1;min-height:220px;min-width:0;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(10,34,58,.9),rgba(6,20,38,.92));border:1px solid rgba(64,158,255,.22);position:relative}
+.panel{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(10,34,58,.9),rgba(6,20,38,.92));border:1px solid rgba(64,158,255,.22);position:relative;overflow:hidden}
 .panel::before,.panel::after{content:"";position:absolute;width:14px;height:14px;border-color:#3fa2ff;border-style:solid;z-index:2}
 .panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px}
 .panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
@@ -322,9 +322,9 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#03121f;c
 .chart{position:absolute;inset:0}
 .tbl{position:absolute;inset:0;overflow:auto;padding:0 8px 8px}
 .tbl::-webkit-scrollbar{width:4px}.tbl::-webkit-scrollbar-thumb{background:rgba(64,158,255,.35)}
-table{width:100%;border-collapse:collapse;font-size:11px}
-th{position:sticky;top:0;background:#0d2c4a;color:#7fc3ff;padding:6px 4px;font-weight:600;letter-spacing:1px;border-bottom:1px solid rgba(64,158,255,.35);z-index:1}
-td{padding:5px 4px;text-align:center;color:#a9cbe4;border-bottom:1px dashed rgba(64,158,255,.12);white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-size:clamp(10px,0.78vw,12px)}
+th{position:sticky;top:0;background:#0d2c4a;color:#7fc3ff;padding:0.7vh 4px;font-weight:600;letter-spacing:1px;border-bottom:1px solid rgba(64,158,255,.35);z-index:1}
+td{padding:0.55vh 4px;text-align:center;color:#a9cbe4;border-bottom:1px dashed rgba(64,158,255,.12);white-space:nowrap}
 tr:nth-child(even) td{background:rgba(20,60,100,.15)}
 td.nm{color:#eaf6ff;font-weight:600}
 .ft{flex:0 0 auto;margin-top:10px;border:1px solid rgba(64,158,255,.22);background:rgba(8,26,46,.9);padding:8px 14px;color:#5d89ad;font-size:12px;letter-spacing:1px}
@@ -370,7 +370,7 @@ const hasEC=typeof echarts!=="undefined";
 const AX={axisLine:{lineStyle:{color:"rgba(64,158,255,.35)"}},axisLabel:{color:"#7ea6c8",fontSize:10},axisTick:{show:false},splitLine:{lineStyle:{color:"rgba(64,158,255,.1)"}}};
 const TIP={backgroundColor:"rgba(6,22,40,.95)",borderColor:"rgba(64,158,255,.5)",textStyle:{color:"#cfe6f7",fontSize:12}};
 function mk(id,opt){if(!hasEC){document.getElementById(id).innerHTML='<div style="padding:20px;color:#5d89ad;font-size:12px">图表组件加载失败（需联网加载 ECharts）</div>';return;}
- const c=echarts.init(document.getElementById(id));c.setOption(opt);addEventListener("resize",()=>c.resize());}
+ const c=echarts.init(document.getElementById(id));c.setOption(opt);setTimeout(()=>c.resize(),80);addEventListener("resize",()=>c.resize());}
 mk("cLevel",{tooltip:{...TIP,trigger:"axis",axisPointer:{type:"shadow"}},
  grid:{left:8,right:26,top:10,bottom:4,containLabel:true},
  xAxis:{type:"value",...AX},
