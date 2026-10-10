@@ -1,456 +1,394 @@
 // =====================================================
-// ai_advisor.js —— 培小e 培训建议规则引擎（独立模块）
+// ai_advisor.js —— 培小e 应训未训建议规则引擎
 //
-// 与数据维护完全解耦：本模块只做"分析 → 产出建议名单"，不写任何业务数据。
-// 产出结果（建议名单）可选存库（本地 JSON 归档 / 追加建议台账）。
+// 只读分析，不写业务数据。流程固定：
+//   读规则表 → 按 ruleCode 找执行器 → 逐计划筛人 → 打分排序 → 按名额取数
+// 规则是"自定义"的：规则内容在 pxe_training_rule 表里维护，
+// 新增/停用规则只改数据；每种 ruleCode 对应一个写死的执行器，避免歧义。
 //
-// 规则引擎（自动识别，规则由 Skill 内定，不依赖外部 AI 接口）：
-//   R1 计划匹配：读培训计划的 matching_rules/target_group/cadre_level，
-//                 从人员表筛出符合条件的人员（层级/角色/是否为生产骨干）
-//   R2 已训排除：凡在该班次/期次已有培训记录的人，不进入建议
-//   R3 学时补足：已有同类但该年度学时不足的人，标记为"补训"
-//   R4 名额约束：按单位名额(pxe_quota_alloc)限制各单位建议上限
-//   R5 优先级评分：综合层级匹配度、是否从未参训、在训时长等打分，产出 高/中/低
+// 支持的规则编码：
+//   硬规则：HARD_AB_ROLE / HARD_REPEAT_TRAIN / HARD_PROD_HEAD_SEASON / HARD_TARGET_LIMIT
+//   软规则：SOFT_RECENT_UNTRAINED / SOFT_HOURS_GAP / SOFT_PARTY_SEC_ONLY
+// 遇到未识别的 ruleCode 时跳过并在结果中提示，不猜、不静默
 // =====================================================
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { execFileSync } = require('child_process');
 const CFG = require('./config');
-const api = require('./train_api');
-// 简单日期格式化
-function _fmtDate(v) {
-  const d = v === 'now' ? new Date() : new Date(v);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`;
+const trainer = require('./train_api');
+
+const PYTHON = CFG.python || 'python';
+const WRITER = path.join(__dirname, 'report_writer.py');
+
+// 常量：与规则表内容一一对应
+const RETIRE_AGE = 55;
+const TRAINED_YEAR = '2026';
+const SEASON_RANGES = [['03-01', '06-30'], ['09-01', '11-30']];
+const CLASS_TYPE_RULES = [
+  [/新提任.*正职/, '新提任正职'],
+  [/新提任.*副职/, '新提任副职'],
+  [/县公司领导班子|县班子/, '县班子'],
+  [/四级领导人员进修班/, '进修班'],
+];
+
+// ---------- 工具 ----------
+function toDate(value) {
+  if (!value) {
+    return null;
+  }
+  const text = String(value).slice(0, 10);
+  const parsed = new Date(`${text}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
-const DateTime = _fmtDate;
 
-// =========================================
-// 1. 从计划中解析匹配条件（R1）
-// =========================================
-function parsePlanCriteria(plan) {
-  const criteria = {
-    cadreLevels: new Set(),    // 干部层级
-    roles: new Set(),          // 角色
-    prodHeadOnly: false,       // 仅生产骨干
-    targetText: '',            // 培训对象原文（兜底模糊匹配）
-    matchedRules: [],          // 命中的规则说明
-    hasAnyRule: false,         // 是否有任何匹配规则（空计划=无法甄别，跳过）
-  };
+function overlaps(start, end, ranges, year) {
+  if (!start || !end) {
+    return false;
+  }
+  return ranges.some(([from, to]) => {
+    const rangeStart = new Date(`${year}-${from}T00:00:00`);
+    const rangeEnd = new Date(`${year}-${to}T00:00:00`);
+    return start <= rangeEnd && end >= rangeStart;
+  });
+}
 
-  // matching_rules 是 JSON（服务端序列化保存）
-  let rules = null;
-  if (plan.matching_rules) {
-    if (typeof plan.matching_rules === 'string') {
-      try { rules = JSON.parse(plan.matching_rules); } catch { rules = null; }
-    } else {
-      rules = plan.matching_rules;
+function classTypeOf(className) {
+  for (const [pattern, type] of CLASS_TYPE_RULES) {
+    if (pattern.test(className || '')) {
+      return type;
     }
   }
-  // 兼容 {cadreLevel, role, ...} 顶层结构
-  if (!rules && plan.rule_desc) {
-    try { rules = JSON.parse(plan.rule_desc); } catch { rules = null; }
-  }
+  return '其他';
+}
 
-  if (rules && typeof rules === 'object') {
-    for (const [k, v] of Object.entries(rules)) {
-      const key = String(k).toLowerCase();
-      if (/cadre.?level|level|层级|干部/.test(key)) {
-        for (const it of ensureList(v)) criteria.cadreLevels.add(stripSpace(it));
-        criteria.matchedRules.push(`干部层级=${ensureList(v).join('、')}`);
-        criteria.hasAnyRule = true;
-      } else if (/role|角色|岗位/.test(key)) {
-        for (const it of ensureList(v)) criteria.roles.add(stripSpace(it));
-        criteria.matchedRules.push(`角色=${ensureList(v).join('、')}`);
-        criteria.hasAnyRule = true;
-      } else if (/prod|骨干|head/.test(key)) {
-        if (truthy(v)) criteria.prodHeadOnly = true;
-        criteria.matchedRules.push('仅生产骨干');
-        criteria.hasAnyRule = true;
-      }
+function yearsBetween(later, earlier) {
+  if (!later || !earlier) {
+    return null;
+  }
+  return (later.getTime() - earlier.getTime()) / (365.25 * 24 * 3600 * 1000);
+}
+
+// ---------- 规则执行器 ----------
+// 每个执行器返回 { excluded: true, reason } 或 { score, reason }
+
+// 硬规则：参培对象限制
+function ruleTargetLimit(person, plan, context) {
+  const age = Number(person.age || 0);
+  const type = classTypeOf(plan.className);
+  if (age >= RETIRE_AGE && type === '进修班') {
+    return { excluded: true, reason: `距退休5年内（${age}岁）不安排进修班` };
+  }
+  if (type === '新提任正职' || type === '新提任副职') {
+    const expect = type === '新提任正职' ? /正职/ : /副职/;
+    if (!expect.test(person.cadreLevel || '')) {
+      return { excluded: true, reason: `非${type}对象` };
     }
   }
+  return null;
+}
 
-  // target_group 文本兜底
-  if (plan.target_group) {
-    criteria.targetText = String(plan.target_group);
-    extractKeywords(criteria.targetText, criteria);
-    // target_group 文本也可以触发规则（含层级/角色关键词）
-    if (criteria.cadreLevels.size > 0 || criteria.roles.size > 0 || criteria.prodHeadOnly) {
-      criteria.hasAnyRule = true;
+// 硬规则：重复参培剔除
+function ruleRepeatTrain(person, plan, context) {
+  const type = classTypeOf(plan.className);
+  const sameYear = context.records.filter(r => r.empId === person.empId && String(r.planYear) === String(context.year));
+  const otherPlan = sameYear.find(r => r.className !== plan.className);
+  if (otherPlan) {
+    return { excluded: true, reason: `本年度已安排 ${otherPlan.className}` };
+  }
+  const lastYearSame = context.records.filter(r => r.empId === person.empId
+    && String(r.planYear) === TRAINED_YEAR
+    && classTypeOf(r.className) === type);
+  if (lastYearSame.length) {
+    return { excluded: true, reason: `${TRAINED_YEAR}年度已参加同类别班次` };
+  }
+  return null;
+}
+
+// 硬规则：生产分管负责人避开春秋检
+function ruleProdHeadSeason(person, plan, context) {
+  if (person.isProdHead !== '是') {
+    return null;
+  }
+  const start = toDate(plan.startDate);
+  const end = toDate(plan.endDate);
+  if (overlaps(start, end, SEASON_RANGES, context.year)) {
+    return { excluded: true, reason: '生产分管负责人与春秋检时段重叠' };
+  }
+  return null;
+}
+
+// 硬规则：AB 角不得同出（依赖本轮已列入名单的人）
+function ruleAbRoleConflict(person, plan, context) {
+  const partner = person.bRole;
+  if (!partner) {
+    return null;
+  }
+  const selected = context.selectedNames || new Set();
+  if (selected.has(partner)) {
+    return { excluded: true, reason: `与B角 ${partner} 同批次冲突` };
+  }
+  return null;
+}
+
+// 软规则：近3年未参培优先
+function scoreRecentUntrained(person, plan, context) {
+  const start = toDate(plan.startDate) || new Date();
+  const recent = context.records.filter(r => r.empId === person.empId)
+    .map(r => yearsBetween(start, toDate(r.startDate)))
+    .filter(v => v !== null);
+  if (!recent.length) {
+    return { score: 30, reason: '近3年未参培' };
+  }
+  const min = Math.min(...recent);
+  if (min >= 3) {
+    return { score: 30, reason: `距上次参培 ${min.toFixed(1)} 年` };
+  }
+  if (min >= 1) {
+    return { score: 12, reason: `距上次参培 ${min.toFixed(1)} 年` };
+  }
+  return { score: 0, reason: null };
+}
+
+// 软规则：学时缺口优先
+function scoreHoursGap(person, plan, context) {
+  const hours = Number(person.totalHours || 0);
+  if (hours < 100) {
+    return { score: 25, reason: `累计学时偏低（${hours}）` };
+  }
+  if (hours < 200) {
+    return { score: 12, reason: null };
+  }
+  return { score: 0, reason: null };
+}
+
+// 软规则：党支部书记专场
+function scorePartySecretary(person, plan, context) {
+  if (person.isPartySec !== '是') {
+    return null;
+  }
+  const isFifthSession = /第五期/.test(plan.sessionNo || '');
+  const isInstructorClass = classTypeOf(plan.className) === '进修班';
+  if (isInstructorClass && isFifthSession) {
+    return { score: 35, reason: '党支部书记专场安排' };
+  }
+  return { score: -20, reason: null, note: '党支部书记统一安排第五期专场' };
+}
+
+const RULE_EXECUTORS = {
+  HARD_AB_ROLE: ruleAbRoleConflict,
+  HARD_REPEAT_TRAIN: ruleRepeatTrain,
+  HARD_PROD_HEAD_SEASON: ruleProdHeadSeason,
+  HARD_TARGET_LIMIT: ruleTargetLimit,
+  SOFT_RECENT_UNTRAINED: scoreRecentUntrained,
+  SOFT_HOURS_GAP: scoreHoursGap,
+  SOFT_PARTY_SEC_ONLY: scorePartySecretary,
+};
+
+// 规则识别：用户上传的规则编码可能不同，用关键词兜底映射到执行器
+const RULE_PATTERNS = [
+  { code: 'HARD_AB_ROLE', keywords: ['ab角', 'b角', '同出', '同时参培'], executor: ruleAbRoleConflict },
+  { code: 'HARD_REPEAT_TRAIN', keywords: ['重复参培', '同类别', '只安排', '不重复'], executor: ruleRepeatTrain },
+  { code: 'HARD_PROD_HEAD_SEASON', keywords: ['春秋检', '生产分管', '离岗'], executor: ruleProdHeadSeason },
+  { code: 'HARD_TARGET_LIMIT', keywords: ['退休', '新提任', '参培对象', '对象限制'], executor: ruleTargetLimit },
+  { code: 'SOFT_PARTY_SEC_ONLY', keywords: ['党支部书记', '专场', '书记'], executor: scorePartySecretary },
+  { code: 'SOFT_RECENT_UNTRAINED', keywords: ['近3年', '近三年', '未参培', '未参加'], executor: scoreRecentUntrained },
+  { code: 'SOFT_HOURS_GAP', keywords: ['学时', '缺口', '学时低'], executor: scoreHoursGap },
+];
+
+// 解析单条规则：优先按 ruleCode 精确匹配，否则按名称与内容关键词兜底
+function resolveExecutor(rule) {
+  const code = String(rule.ruleCode || '').trim();
+  if (RULE_EXECUTORS[code]) {
+    return { code, executor: RULE_EXECUTORS[code], matchedBy: 'code' };
+  }
+  const text = `${rule.ruleName || ''} ${rule.ruleContent || ''}`.toLowerCase();
+  for (const pattern of RULE_PATTERNS) {
+    if (pattern.keywords.some(keyword => text.includes(keyword.toLowerCase()))) {
+      return { code: pattern.code, executor: pattern.executor, matchedBy: 'keyword',
+        customCode: code || null };
     }
-    // 纯文本描述也视为有规则（"各供电所所长"等）
-    if (criteria.targetText && !criteria.hasAnyRule) {
-      criteria.hasAnyRule = true;
-      criteria.matchedRules.push('培训对象文本描述');
-    }
   }
-
-  return criteria;
+  return null;
 }
 
-function ensureList(v) {
-  return Array.isArray(v) ? v : [v];
-}
-function stripSpace(s) {
-  return String(s).replace(/\s+/g, '').trim();
-}
-function truthy(v) {
-  return v === true || v === 1 || ['1', '是', 'true', 'Y', 'y'].includes(String(v).trim());
-}
-function notEmpty(s) {
-  return s !== null && s !== undefined && String(s).trim() !== '';
-}
-
-// 从培训对象描述文本中提取关键词（"各班站长"→ 站长）
-function extractKeywords(text, criteria) {
-  const tokens = String(text).replace(/、/g, ' ').replace(/，/g, ' ').replace(/；/g, ' ').split(/\s+/);
-  for (const t of tokens) {
-    const s = stripSpace(t);
-    if (!s) continue;
-    // 含"干部/层"的是层级；含"骨干"是生产骨干
-    if (/干部|层|级/.test(s)) criteria.cadreLevels.add(s);
-    if (/骨干/.test(s)) criteria.prodHeadOnly = true;
-    else if (/岗|员|长|师|班/.test(s)) criteria.roles.add(s);
-  }
-}
-
-// =========================================
-// 2. 判断人员是否匹配计划（R1）
-// =========================================
-function personMatches(plan, criteria, person) {
-  // 如果计划无任何匹配规则 → 无法甄别，跳过
-  if (!criteria.hasAnyRule) return { matched: false, reasons: [], levelOk: false, roleOk: false, prodOk: false };
-
-  const reasons = [];
-  const name = person.emp_name || '';
-  const level = stripSpace(person.cadre_level);
-  const role = stripSpace(person.b_role);
-  const isProd = truthy(person.is_prod_head);
-
-  // 层级匹配（计划指定了层级才参与匹配）
-  let levelOk = criteria.cadreLevels.size === 0;
-  if (criteria.cadreLevels.size > 0) {
-    levelOk = level !== '' && [...criteria.cadreLevels].some(c => level.includes(c) || c.includes(level));
-    if (levelOk) reasons.push(`层级匹配(${person.cadre_level})`);
-  }
-
-  // 角色匹配
-  let roleOk = criteria.roles.size === 0;
-  if (!roleOk) {
-    roleOk = role !== '' && [...criteria.roles].some(r => role.includes(r) || r.includes(role));
-    if (roleOk) reasons.push(`角色匹配(${person.b_role})`);
-  }
-
-  // 生产骨干
-  let prodOk = true;
-  if (criteria.prodHeadOnly) {
-    prodOk = isProd;
-    if (prodOk) reasons.push('生产骨干');
-  }
-
-  // 文本兜底：target_group 含该人岗位/层级关键词
-  let textOk = false;
-  if (criteria.targetText) {
-    textOk = (
-      (level && criteria.targetText.includes(level)) ||
-      (role && criteria.targetText.includes(role))
-    );
-    if (textOk) reasons.push('对象文本命中');
-  }
-
-  // 至少一类条件匹配即为"疑似应训"；无任何条件的计划不产出建议
-  const matched = levelOk || roleOk || prodOk || textOk;
-  return { matched, reasons, levelOk, roleOk, prodOk };
-}
-
-// =========================================
-// 3. 主流程：生成建议（R1-R5）
-// =========================================
-async function generateAdvice({ account, credential, year, limitPerUnit } = {}) {
-  const auth = { account, credential };
-  const now = new Date();
-  const targetYear = year || now.getFullYear();
-
-  console.log(`\n[培小e] 培训建议规则引擎开始（年度=${targetYear}）...`);
-
-  // 3.1-3.4 并行拉取四张表（分页在 queryAll 内部完成，多表同时进行）
-  const results = await Promise.allSettled([
-    api.queryAll(CFG.tables.plan, [
-      { field: 'plan_year', operator: 'EQ', value: Number(targetYear) },
-    ], account, credential),
-    api.queryAll(CFG.tables.leader, [], account, credential),
-    api.queryAll(CFG.tables.record, [], account, credential),
-    api.queryAll(CFG.tables.quota, [], account, credential),
+// ---------- 主流程 ----------
+async function generateAdvice({ year = '2027', limitPerUnit, outDir, account, credential } = {}) {
+  const safeYear = String(year);
+  const [leadersR, plansR, quotasR, recordsR, rulesR] = await Promise.all([
+    trainer.queryAll('pxe_leader_info', {}, account, credential),
+    trainer.queryAll('pxe_training_plan', { planYear: safeYear }, account, credential),
+    trainer.queryAll('pxe_quota_alloc', {}, account, credential),
+    trainer.queryAll('pxe_train_record', {}, account, credential),
+    trainer.queryAll('pxe_training_rule', {}, account, credential),
   ]);
-
-  const TABLE_ERR = ['PLANS_FETCH_FAILED', 'PERSONS_FETCH_FAILED', 'RECORDS_FETCH_FAILED', 'QUOTA_FETCH_FAILED'];
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    if (r.status !== 'fulfilled' || !r.value.ok) {
-      console.error(`[培小e] 拉取表#${i}失败: ${r.status === 'rejected' ? (r.reason?.message || '') : (r.value.message || r.value.error)}`);
-      return { ok: false, error: TABLE_ERR[i] };
+  for (const [name, result] of [['人员', leadersR], ['计划', plansR], ['名额', quotasR],
+    ['记录', recordsR], ['规则', rulesR]]) {
+    if (!result.ok) {
+      return { ok: false, message: `读取${name}失败: ${result.message || result.error}` };
     }
   }
 
-  const plans = results[0].value.rows;
-  const persons = results[1].value.rows;
-  const records = results[2].value.rows;
-  const quotas = results[3].value.rows;
+  const leaders = leadersR.rows;
+  const plans = plansR.rows;
+  const quotas = quotasR.rows;
+  const records = recordsR.rows;
+  const rules = rulesR.rows.filter(r => r.enabled !== '0' && r.delFlag !== '2');
 
-  console.log(`[培小e] 年度 ${targetYear} 培训计划 ${plans.length} 个`);
-  console.log(`[培小e] 在册人员 ${persons.length} 人`);
-  console.log(`[培小e] 培训记录 ${records.length} 条`);
-  console.log(`[培小e] 单位名额 ${quotas.length} 条`);
+  // 规则分派：先按编码识别，识别不了按关键词兜底；仍未识别的只提示不猜
+  const hardRules = [];
+  const softRules = [];
+  const unknownRules = [];
+  rules.forEach(rule => {
+    const resolved = resolveExecutor(rule);
+    if (!resolved) {
+      unknownRules.push({ code: rule.ruleCode, name: rule.ruleName });
+      return;
+    }
+    const entry = Object.assign({}, resolved, { name: rule.ruleName, content: rule.ruleContent });
+    const isHard = String(rule.ruleType) === '硬规则' || resolved.code.startsWith('HARD_');
+    (isHard ? hardRules : softRules).push(entry);
+  });
 
-  // 附带原始表数据（供 html_viewer 复用，避免重复查库；不进入归档 JSON）
-  const rawTables = { persons, plans, records, quotas };
-
-  // 建索引
-  const recordsByPerson = new Map(); // emp_id/emp_name → 记录列表
-  for (const r of records) {
-    const key = r.emp_id || r.emp_name;
-    if (!key) continue;
-    if (!recordsByPerson.has(key)) recordsByPerson.set(key, []);
-    recordsByPerson.get(key).push(r);
-  }
-
-  const quotaByUnitByPlan = new Map(); // plan_id → Map(unit → quota_count)
-  for (const q of quotas) {
-    const pid = q.plan_id;
-    if (!pid) continue;
-    if (!quotaByUnitByPlan.has(pid)) quotaByUnitByPlan.set(pid, new Map());
-    quotaByUnitByPlan.get(pid).set(q.unit_name, Number(q.quota_count) || 0);
-  }
-
-  // 3.5 逐年逐计划比对
-  const result = { plans: [], totalSuggest: 0, totalGap: 0, generatedAt: now };
-  let adviceSeq = 0;
+  const usedPlanIds = new Set(quotas.map(q => q.planId));
+  const planResults = [];
 
   for (const plan of plans) {
-    const criteria = parsePlanCriteria(plan);
+    const quotaByUnit = {};
+    quotas.filter(q => q.planId === plan.planId)
+      .forEach(q => { quotaByUnit[q.unitName] = Number(q.quotaCount || 0); });
 
-    // 无任何匹配规则的计划：无法自动甄别应训人员，跳过并记录
-    if (!criteria.hasAnyRule) {
-      console.log(`  - [${plan.class_name || plan.plan_id}] ⚠ 无匹配规则，已跳过（建议人工配置 matching_rules 或 target_group）`);
-      continue;
+    const context = { year: safeYear, records, selectedNames: new Set() };
+    const candidates = [];
+    const excluded = [];
+
+    for (const person of leaders) {
+      const hit = { softScore: 0, reasons: [] };
+      let blocked = false;
+      for (const item of hardRules) {
+        const verdict = item.executor(person, plan, context);
+        if (verdict && verdict.excluded) {
+          excluded.push({ empId: person.empId, empName: person.empName, unitName: person.unitName,
+            rule: item.code, ruleName: item.name, reason: verdict.reason });
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) {
+        continue;
+      }
+      for (const item of softRules) {
+        const verdict = item.executor(person, plan, context);
+        if (verdict) {
+          hit.softScore += verdict.score || 0;
+          if (verdict.reason) {
+            hit.reasons.push(verdict.reason);
+          }
+        }
+      }
+      hit.person = person;
+      candidates.push(hit);
     }
 
-    const planAdvice = [];
-    const planQuotaMap = quotaByUnitByPlan.get(plan.plan_id) || new Map();
+    // 高分优先；同分按累计学时升序
+    candidates.sort((a, b) => b.softScore - a.softScore
+      || Number(a.person.totalHours || 0) - Number(b.person.totalHours || 0));
 
-    let eligibleCount = 0;
-    for (const person of persons) {
-      if (!person.emp_id && !person.emp_name) continue;
-      const m = personMatches(plan, criteria, person);
-      if (!m.matched) continue;
-      eligibleCount++;
-
-      // R2 已训排除
-      const pkey = person.emp_id || person.emp_name;
-      const myRecs = recordsByPerson.get(pkey) || [];
-      const trained = myRecs.find(r =>
-        String(r.plan_id || '') === String(plan.plan_id || '') ||
-        (String(r.class_name || '') === String(plan.class_name || '') &&
-         String(r.session_no || '') === String(plan.session_no || ''))
-      );
-
-      // 已训且学时达标 → 不建议
-      if (trained && (Number(trained.hours) || 0) >= 8) continue;
-
-      // R3 学时补足标记
-      const totalHours = myRecs.reduce((s, r) => s + (Number(r.hours) || 0), 0);
-      const needMakeup = !!trained && (Number(trained.hours) || 0) < 8;
-
-      // R5 优先级打分
-      const score = scorePerson(person, m, trained, totalHours);
-      const priority = score >= 80 ? '高' : (score >= 50 ? '中' : '低');
-
-      adviceSeq++;
-      planAdvice.push({
-        adviceId: `ADV-${plan.plan_id}-${adviceSeq}`,
-        planId: plan.plan_id,
-        planYear: plan.plan_year,
-        className: plan.class_name,
-        sessionNo: plan.session_no,
-        startDate: plan.start_date,
-        endDate: plan.end_date,
-        trainPlace: plan.train_place,
-        empId: person.emp_id,
-        empName: person.emp_name || '',
-        unitName: person.unit_name || '',
-        regionName: person.region_name || '',
-        cadreLevel: person.cadre_level || '',
-        bRole: person.b_role || '',
-        isProdHead: person.is_prod_head || '',
-        trainedBefore: !!trained,
-        needMakeup,
-        totalHours,
-        score,
-        priority,
-        reasons: m.reasons,
+    // 按单位名额取数（AB 角冲突在取数时实时判定）
+    const unitUsed = {};
+    const suggestions = [];
+    for (const item of candidates) {
+      const person = item.person;
+      const quota = quotaByUnit[person.unitName];
+      if (quota === undefined) {
+        continue;
+      }
+      const used = unitUsed[person.unitName] || 0;
+      const cap = limitPerUnit ? Math.min(quota || limitPerUnit, limitPerUnit) : quota;
+      if (used >= cap) {
+        excluded.push({ empId: person.empId, empName: person.empName, unitName: person.unitName,
+          rule: 'QUOTA', reason: `本单位名额已满（${cap}）` });
+        continue;
+      }
+      if (hardRules.some(item => item.code === 'HARD_AB_ROLE')) {
+        const verdict = ruleAbRoleConflict(person, plan, context);
+        if (verdict && verdict.excluded) {
+          excluded.push({ empId: person.empId, empName: person.empName, unitName: person.unitName,
+            rule: 'HARD_AB_ROLE', reason: verdict.reason });
+          continue;
+        }
+      }
+      unitUsed[person.unitName] = used + 1;
+      context.selectedNames.add(person.empName);
+      suggestions.push({
+        empId: person.empId,
+        empName: person.empName,
+        unitName: person.unitName,
+        cadreLevel: person.cadreLevel,
+        isPartySec: person.isPartySec,
+        isProdHead: person.isProdHead,
+        totalHours: person.totalHours,
+        score: Math.max(10, Math.min(100, 50 + item.softScore)),
+        priority: item.softScore >= 40 ? '高' : (item.softScore >= 15 ? '中' : '低'),
+        reasons: item.reasons,
       });
     }
 
-    // R4 名额约束：按单位限制建议人数
-    let applied = planAdvice;
-    if (planQuotaMap.size > 0 && limitPerUnit === undefined) {
-      const byUnit = new Map();
-      for (const a of planAdvice) {
-        if (!byUnit.has(a.unitName)) byUnit.set(a.unitName, []);
-        byUnit.get(a.unitName).push(a);
-      }
-      applied = [];
-      for (const [unit, list] of byUnit) {
-        const cap = planQuotaMap.get(unit);
-        const sorted = [...list].sort((a, b) => b.score - a.score);
-        const take = (cap && cap > 0) ? sorted.slice(0, cap) : sorted;
-        applied.push(...take);
-      }
-    }
-
-    // 排序：分数高者优先
-    applied.sort((a, b) => b.score - a.score);
-
-    const gap = plan.plan_count ? Number(plan.plan_count) - applied.length : 0;
-
-    result.plans.push({
-      planId: plan.plan_id,
-      planYear: plan.plan_year,
-      className: plan.class_name,
-      sessionNo: plan.session_no,
-      startDate: plan.start_date,
-      endDate: plan.end_date,
-      planCount: Number(plan.plan_count) || 0,
-      eligibleCount,
-      suggestCount: applied.length,
-      gap: Math.max(0, gap),
-      rules: criteria.matchedRules,
-      targetText: criteria.targetText,
-      advice: applied,
+    planResults.push({
+      planId: plan.planId,
+      className: plan.className,
+      sessionNo: plan.sessionNo,
+      classType: classTypeOf(plan.className),
+      startDate: plan.startDate,
+      endDate: plan.endDate,
+      timeText: `${plan.startDate || ''} 至 ${plan.endDate || ''}`,
+      place: plan.trainPlace,
+      planCount: plan.planCount,
+      targetGroup: plan.targetGroup,
+      ruleDesc: plan.ruleDesc,
+      ruleKey: plan.ruleKey,
+      quotaUsed: Object.keys(quotaByUnit).length ? unitUsed : {},
+      quota: quotaByUnit,
+      suggestions,
+      excluded,
     });
-    result.totalSuggest += applied.length;
-    result.totalGap += Math.max(0, gap);
-
-    console.log(`  - [${plan.class_name || plan.plan_id}] 应训匹配 ${eligibleCount} 人 → 建议 ${applied.length} 人 (缺口 ${Math.max(0, gap)})`);
   }
 
-  // 汇总统计
-  const stats = summarize(result, records);
-  result.stats = stats;
-
-  console.log(`\n[培小e] 分析完成：共 ${result.plans.length} 个计划，建议 ${result.totalSuggest} 人，缺口 ${result.totalGap} 人`);
-  console.log(`  📊 按单位建议分布: `);
-  for (const [u, n] of Object.entries(stats.byUnit)) {
-    console.log(`      ${u || '(未知)'}: ${n} 人`);
-  }
-
-  return { ok: true, data: result };
-}
-
-// 优先级打分（R5）
-function scorePerson(person, match, trained, totalHours) {
-  let score = 0;
-  if (match.levelOk) score += 35;
-  if (match.roleOk) score += 25;
-  if (match.prodOk) score += 20;
-  if (match.matched && match.reasons.length === 0) score += 10; // 文本命中兜底
-
-  if (!trained) {
-    score += 20; // 从未参训，加分
-  } else {
-    score -= 10; // 已训过减分
-  }
-  if (totalHours < 40) score += 5; // 年度学时偏少
-  return Math.max(10, Math.min(100, score));
-}
-
-function summarize(result, records) {
-  const byUnit = {};
-  const byLevel = {};
-  const byClass = {};
-  for (const p of result.plans) {
-    for (const a of p.advice) {
-      const u = a.unitName || '(未知)';
-      byUnit[u] = (byUnit[u] || 0) + 1;
-      const l = a.cadreLevel || '(未知)';
-      byLevel[l] = (byLevel[l] || 0) + 1;
-      const c = a.className || '(未知)';
-      byClass[c] = (byClass[c] || 0) + 1;
-    }
-  }
-  return {
-    totalPlans: result.plans.length,
-    totalSuggest: result.totalSuggest,
-    totalGap: result.totalGap,
-    byUnit: sortByVal(byUnit),
-    byLevel: sortByVal(byLevel),
-    byClass: sortByVal(byClass),
-    totalRecords: records.length,
+  const result = {
+    ok: true,
+    year: safeYear,
+    summary: {
+      plans: planResults.length,
+      total: planResults.reduce((sum, p) => sum + p.suggestions.length, 0),
+      excluded: planResults.reduce((sum, p) => sum + p.excluded.length, 0),
+      rules: {
+        hard: hardRules.map(item => item.code),
+        soft: softRules.map(item => item.code),
+        matchedByKeyword: hardRules.concat(softRules).filter(item => item.matchedBy === 'keyword').length,
+        unknown: unknownRules,
+      },
+      plansWithoutQuota: plans.filter(p => !usedPlanIds.has(p.planId)).length,
+    },
+    plans: planResults,
   };
-}
 
-function sortByVal(obj) {
-  return Object.fromEntries(Object.entries(obj).sort((a, b) => b[1] - a[1]));
-}
-
-// =========================================
-// 4. 产出建议名单 HTML（走 html_viewer 模板）
-// =========================================
-async function buildAdviceHtml(result, auth) {
-  const htmlViewer = require('./html_viewer');
-  const html = await htmlViewer.renderAdvice(result, auth);
-  const date = DateTime('now');
-  const file = path.join(CFG.outDir, `培训建议_${date}.html`);
-  fs.mkdirSync(CFG.outDir, { recursive: true });
-  fs.writeFileSync(file, html, 'utf-8');
-  return file;
-}
-
-// =========================================
-// 5. 存库（单独方式）：审计台账 JSON 归档 + 追加 CSV
-//    不写业务数据库，仅本地留存决策记录
-// =========================================
-function persistAdvice(result, filePath) {
-  const archiveDir = path.join(CFG.outDir, '_建议归档');
-  fs.mkdirSync(archiveDir, { recursive: true });
-  const date = DateTime('now');
-
-  // JSON 全量归档（排除 rawTables 原始表数据，避免冗余重复）
-  const { rawTables, ...cleanResult } = result;
-  const jsonPath = path.join(archiveDir, `建议清单_${date}.json`);
-  fs.writeFileSync(jsonPath, JSON.stringify(cleanResult, null, 2), 'utf-8');
-
-  // CSV 追加台账（字段含逗号/引号时自动转义）
-  const csvPath = path.join(archiveDir, '建议台账.csv');
-  const header = '建议ID,计划ID,培训班,期次,姓名,单位,干部层级,角色,历史已训,建议理由,优先级,评分,时间\n';
-  if (!fs.existsSync(csvPath)) fs.writeFileSync(csvPath, header, 'utf-8');
-  const lines = [];
-  const esc = (v) => {
-    const s = String(v ?? '');
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  for (const p of result.plans) {
-    for (const a of p.advice) {
-      lines.push([
-        esc(a.adviceId), esc(a.planId), esc(a.className), esc(a.sessionNo), esc(a.empName), esc(a.unitName),
-        esc(a.cadreLevel), esc(a.bRole), a.trainedBefore ? '是' : '否',
-        esc((a.reasons || []).join(';')), a.priority, a.score, esc(a.empId || ''),
-      ].join(','));
-    }
+  // 输出 Excel + HTML（占位符模板替换）
+  const targetDir = outDir || CFG.outDir || os.tmpdir();
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    const jsonPath = path.join(os.tmpdir(), `peixiaoe_advice_${Date.now()}.json`);
+    fs.writeFileSync(jsonPath, JSON.stringify(result), 'utf8');
+    const env = Object.assign({}, process.env, { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' });
+    const output = execFileSync(PYTHON, [WRITER, '--advice', jsonPath, targetDir], {
+      encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, env,
+    });
+    const written = JSON.parse(output);
+    fs.unlinkSync(jsonPath);
+    result.files = written.files || [];
+  } catch (err) {
+    result.writeError = err.message;
   }
-  fs.appendFileSync(csvPath, lines.join('\n') + '\n', 'utf-8');
-
-  console.log(`[培小e] 建议已存库（归档）:`);
-  console.log(`  📄 JSON: ${jsonPath}`);
-  console.log(`  📊 台账: ${csvPath}`);
-  return { jsonPath, csvPath };
+  return result;
 }
 
-module.exports = {
-  generateAdvice,
-  parsePlanCriteria,
-  personMatches,
-  buildAdviceHtml,
-  persistAdvice,
-};
-
+module.exports = { generateAdvice, RULE_EXECUTORS, classTypeOf };

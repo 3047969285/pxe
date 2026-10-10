@@ -148,6 +148,24 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     return 0;
   }
 
+  // 规则表：Excel 常无「规则编码」列，按规则名复用库里已有编码，避免重复入库
+  if (targetTable === 'pxe_training_rule') {
+    const existing = await trainer.queryAll('pxe_training_rule', {}, account, credential);
+    if (existing.ok) {
+      const codeByName = {};
+      existing.rows.forEach(item => {
+        if (item.ruleName) {
+          codeByName[item.ruleName] = item.ruleCode;
+        }
+      });
+      rows.forEach(row => {
+        if (row.ruleName && codeByName[row.ruleName]) {
+          row.ruleCode = codeByName[row.ruleName];
+        }
+      });
+    }
+  }
+
   console.log('开始入库...');
   const pushed = await pushRows(targetTable, rows, account, credential);
   if (!pushed.ok) {
