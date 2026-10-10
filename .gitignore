@@ -1,0 +1,20 @@
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+
+# 依赖与日志
+node_modules/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.idea/
+.vscode/
+
+# 运行产物
+*.tmp
+*.bak
