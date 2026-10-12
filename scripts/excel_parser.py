@@ -233,7 +233,6 @@ TABLE_LABELS = {
 # 整册模板：一个工作簿含多个工作表，与原始数据文件结构一致
 BOOK_TEMPLATES = {
     "pxe_training_plan": ["pxe_training_plan", "pxe_quota_alloc"],
-    "pxe_leader_info": ["pxe_leader_info", "pxe_train_record"],
 }
 
 # 模板中不展示的字段（数据模型保留，只是模板里不列，避免干扰填报）
