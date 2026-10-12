@@ -312,37 +312,114 @@ FIELD_NOTES = {
 }
 
 # =========================================
-# 模板样例行（浅色显示，导入前可删除）
+# 模板样例数据：每表 4 行，覆盖各种取值情况（浅色显示，导入前删除）
 # =========================================
 SAMPLE_ROWS = {
-    "pxe_leader_info": {
-        "seqNo": 1, "regionName": "济南", "unitName": "济南公司", "empName": "张三",
-        "empId": "00010001", "idCard": "370102198001011234", "gender": "男", "age": 45,
-        "assistDate": "2020-05-01", "hireDate": "2018-07-01", "bRole": "李四",
-        "cadreLevel": "正科级", "staffGrade": "", "isPartySec": "是",
-        "trainedRecords": "四级领导人员进修班 第一期", "totalHours": 120, "isProdHead": "否", "remark": "",
-    },
-    "pxe_training_plan": {
-        "batchId": "", "planYear": "2027", "seqNo": 1, "className": "四级领导人员进修班",
-        "sessionNo": "第一期", "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "",
-        "trainPlace": "临沂校区", "planCount": 70, "targetGroup": "四级领导人员",
-        "ruleDesc": "近3年未参培优先", "ruleKey": "jxb_normal", "remark": "",
-    },
-    "pxe_quota_alloc": {
-        "planYear": "2027", "className": "四级领导人员进修班", "sessionNo": "第一期",
-        "planId": "", "unitName": "济南公司", "quotaCount": 5, "remark": "",
-    },
-    "pxe_train_record": {
-        "planId": "", "empId": "00010001", "empName": "张三", "planYear": "2027",
-        "className": "四级领导人员进修班", "classType": "进修班", "sessionNo": "第一期",
-        "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "", "hours": 16,
-        "unitAtTime": "济南公司", "dataSource": "国网学堂", "remark": "",
-    },
-    "pxe_training_rule": {
-        "ruleType": "硬规则", "ruleCode": "", "ruleName": "硬规则一：AB角不得同出",
-        "ruleContent": "互为AB角的两名领导人员外出培训时间重叠时不得同时参培", "priority": 1,
-        "enabled": "1", "remark": "",
-    },
+    "pxe_leader_info": [
+        # 情况一：正科级、党支部书记、生产分管负责人、有参培记录与累计学时
+        {"seqNo": 1, "regionName": "济南", "unitName": "济南公司", "empName": "张三",
+         "empId": "00010001", "idCard": "370102198001011234", "gender": "男", "age": 45,
+         "assistDate": "2020-05-01", "hireDate": "2018-07-01", "bRole": "李四",
+         "cadreLevel": "正科级", "staffGrade": "", "isPartySec": "是",
+         "trainedRecords": "四级领导人员进修班第一期", "totalHours": 120, "isProdHead": "是",
+         "remark": "生产分管，培训需避开春秋检"},
+        # 情况二：副科级、非书记、从未参培（培训记录与学时留空）、无B角
+        {"seqNo": 2, "regionName": "青岛", "unitName": "青岛公司", "empName": "王五",
+         "empId": "00010002", "idCard": "370102198503151234", "gender": "女", "age": 39,
+         "assistDate": "", "hireDate": "2015年3月", "bRole": "",
+         "cadreLevel": "副科级", "staffGrade": "", "isPartySec": "否",
+         "trainedRecords": "", "totalHours": "", "isProdHead": "否", "remark": ""},
+        # 情况三：四级职员（干部级别留空、填职员职级）、党支部书记、带多个历史班次
+        {"seqNo": 3, "regionName": "烟台", "unitName": "烟台公司", "empName": "赵六",
+         "empId": "00010003", "idCard": "370102199007201234", "gender": "男", "age": 35,
+         "assistDate": "", "hireDate": "2012-09-01", "bRole": "孙七",
+         "cadreLevel": "", "staffGrade": "四级职员", "isPartySec": "是",
+         "trainedRecords": "县公司领导班子进修班第一期、四级领导人员进修班第五期",
+         "totalHours": 240, "isProdHead": "否", "remark": ""},
+        # 情况四：满 55 岁（不安排进修班）、正科级、无任何历史记录
+        {"seqNo": 4, "regionName": "潍坊", "unitName": "潍坊公司", "empName": "周八",
+         "empId": "00010004", "idCard": "370102197003101234", "gender": "男", "age": 56,
+         "assistDate": "2025-12-01", "hireDate": "1995年7月", "bRole": "",
+         "cadreLevel": "正科级", "staffGrade": "", "isPartySec": "否",
+         "trainedRecords": "", "totalHours": 60, "isProdHead": "否",
+         "remark": "距退休不足5年，不安排进修班"},
+    ],
+    "pxe_training_plan": [
+        # 情况一：填参培时间原文，起止日期与年度由系统自动拆解
+        {"batchId": "", "planYear": "2027", "seqNo": 1, "className": "四级领导人员进修班",
+         "sessionNo": "第一期", "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "",
+         "trainPlace": "临沂校区", "planCount": 70, "targetGroup": "四级领导人员（正科级）",
+         "ruleDesc": "近3年未参培优先", "ruleKey": "jxb_normal", "remark": ""},
+        # 情况二：不填参培时间，直接给开始/结束日期
+        {"batchId": "", "planYear": "2027", "seqNo": 2, "className": "新提任四级正职领导人员任职进修班",
+         "sessionNo": "1", "trainPeriod": "", "startDate": "2027-04-10", "endDate": "2027-04-24",
+         "trainPlace": "井冈山干部学院", "planCount": 50, "targetGroup": "2026年新提任四级正职领导人员",
+         "ruleDesc": "2026年新提任正职全覆盖", "ruleKey": "xinren_zheng", "remark": ""},
+        # 情况三：批次标识有值（同一批多条计划共用）
+        {"batchId": "PC202701011200001001", "planYear": "2027", "seqNo": 3, "className": "县公司领导班子进修班",
+         "sessionNo": "第二期", "trainPeriod": "2027年5月8日至5月22日", "startDate": "", "endDate": "",
+         "trainPlace": "临沂校区", "planCount": 70, "targetGroup": "县公司领导班子成员",
+         "ruleDesc": "学时缺口优先", "ruleKey": "xgsb", "remark": ""},
+        # 情况四：党支部书记专场（第五期）
+        {"batchId": "", "planYear": "2027", "seqNo": 4, "className": "四级领导人员进修班",
+         "sessionNo": "第五期", "trainPeriod": "2027年11月10日至11月24日", "startDate": "", "endDate": "",
+         "trainPlace": "临沂校区", "planCount": 80, "targetGroup": "党支部书记",
+         "ruleDesc": "党支部书记专场", "ruleKey": "jxb_secretary", "remark": "书记专场"},
+    ],
+    "pxe_quota_alloc": [
+        # 情况一：只填年度+班次+期次定位计划，计划ID留空
+        {"planYear": "2027", "className": "四级领导人员进修班", "sessionNo": "第一期",
+         "planId": "", "unitName": "济南公司", "quotaCount": 5, "remark": ""},
+        # 情况二：同一班次期次、不同单位
+        {"planYear": "2027", "className": "四级领导人员进修班", "sessionNo": "第一期",
+         "planId": "", "unitName": "青岛公司", "quotaCount": 6, "remark": ""},
+        # 情况三：期次直接填数字
+        {"planYear": "2027", "className": "县公司领导班子进修班", "sessionNo": "2",
+         "planId": "", "unitName": "烟台公司", "quotaCount": 4, "remark": ""},
+        # 情况四：名额为 0（该期次不分配名额）
+        {"planYear": "2027", "className": "新提任四级副职领导人员任职进修班", "sessionNo": "第一期",
+         "planId": "", "unitName": "莱芜公司", "quotaCount": 0, "remark": "本期不分配"},
+    ],
+    "pxe_train_record": [
+        # 情况一：填参培时间原文，起止日期自动拆解
+        {"planId": "", "empId": "00010001", "empName": "张三", "planYear": "2027",
+         "className": "四级领导人员进修班", "classType": "进修班", "sessionNo": "第一期",
+         "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "", "hours": 16,
+         "unitAtTime": "济南公司", "dataSource": "国网学堂", "remark": ""},
+        # 情况二：直接给起止日期，不填参培时间
+        {"planId": "", "empId": "00010002", "empName": "王五", "planYear": "2027",
+         "className": "县公司领导班子进修班", "classType": "县班子班", "sessionNo": "第二期",
+         "trainPeriod": "", "startDate": "2027-05-08", "endDate": "2027-05-22", "hours": 14,
+         "unitAtTime": "青岛公司", "dataSource": "送培", "remark": ""},
+        # 情况三：学时留空（源数据只有年度合计）
+        {"planId": "", "empId": "00010003", "empName": "赵六", "planYear": "2027",
+         "className": "四级领导人员进修班", "classType": "进修班", "sessionNo": "第五期",
+         "trainPeriod": "2027年11月10日至11月24日", "startDate": "", "endDate": "", "hours": "",
+         "unitAtTime": "烟台公司", "dataSource": "系统匹配确认", "remark": "学时待补"},
+        # 情况四：班次类别留空，备注说明
+        {"planId": "", "empId": "00010004", "empName": "周八", "planYear": "2027",
+         "className": "新提任四级副职领导人员任职进修班", "classType": "", "sessionNo": "第一期",
+         "trainPeriod": "2027年6月5日至6月19日", "startDate": "", "endDate": "", "hours": 12,
+         "unitAtTime": "潍坊公司", "dataSource": "自办班", "remark": ""},
+    ],
+    "pxe_training_rule": [
+        # 情况一：硬规则、启用、优先级1、自带编码
+        {"ruleType": "硬规则", "ruleCode": "HARD_AB_ROLE", "ruleName": "硬规则一：AB角不得同出",
+         "ruleContent": "互为AB角（含单向指定）的两名领导人员，外出培训时间存在重叠时不得同时参培",
+         "priority": 1, "enabled": "1", "remark": ""},
+        # 情况二：硬规则、启用、优先级2、自带编码
+        {"ruleType": "硬规则", "ruleCode": "HARD_REPEAT_TRAIN", "ruleName": "硬规则二：重复参培剔除",
+         "ruleContent": "同一领导人员2027年度原则上只安排参加1个脱产培训班次，2026年度已参加同类别班次的不再重复安排",
+         "priority": 2, "enabled": "1", "remark": ""},
+        # 情况三：软规则、启用、优先级4、编码留空（系统按名称自动生成并复用）
+        {"ruleType": "软规则", "ruleCode": "", "ruleName": "优先规则一：近3年未参培优先",
+         "ruleContent": "近3年未参加任何培训的人员优先安排", "priority": 4, "enabled": "1",
+         "remark": "编码留空，系统自动生成"},
+        # 情况四：软规则、停用（enabled=0）、优先级9、编码留空
+        {"ruleType": "软规则", "ruleCode": "", "ruleName": "优先规则四：临时规则（暂不启用）",
+         "ruleContent": "示例：某类人员优先，当前先停用，需要时改 enabled 为 1",
+         "priority": 9, "enabled": "0", "remark": "停用状态示例"},
+    ],
 }
 
 CHINESE_DIGITS = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
@@ -807,12 +884,15 @@ def _fill_sheet(ws, table_name):
             comment.height = 100
             cell.comment = comment
 
-    # 样例行：浅色斜体，导入前删除即可
-    sample = SAMPLE_ROWS.get(table_name)
-    if sample:
+    # 样例数据：浅色斜体，导入前整块删除即可
+    samples = SAMPLE_ROWS.get(table_name) or []
+    if isinstance(samples, dict):
+        samples = [samples]
+    for offset, sample in enumerate(samples):
         ws.append([sample.get(c, "") for c in whitelist])
+        row_no = 2 + offset
         for index in range(1, len(whitelist) + 1):
-            ws.cell(row=2, column=index).font = Font(color="9AA5B1", italic=True)
+            ws.cell(row=row_no, column=index).font = Font(color="9AA5B1", italic=True)
     ws.freeze_panes = "A2"
 
 
