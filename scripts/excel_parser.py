@@ -28,6 +28,9 @@ import re
 import hashlib
 from datetime import date, datetime
 from openpyxl import load_workbook, Workbook
+from openpyxl.comments import Comment
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 # =========================================
 # 表名简写 → 数据库表名
@@ -217,6 +220,112 @@ TABLE_LABELS = {
     "pxe_quota_alloc": "名额分配",
     "pxe_train_record": "培训记录",
     "pxe_training_rule": "通用规则",
+}
+
+# =========================================
+# 字段说明（模板批注与「字段说明」工作表使用）
+# =========================================
+FIELD_NOTES = {
+    "pxe_leader_info": {
+        "seqNo": "本表内的行号，仅用于排序展示，可留空",
+        "regionName": "所属地区，如济南。仅填单位不填地区时，系统自动由单位派生",
+        "unitName": "所属单位简称，如济南公司",
+        "empName": "人员姓名，需与培训记录中的姓名一致",
+        "empId": "员工编号，唯一，作为人员身份标识；文本格式，请保留前导零",
+        "idCard": "身份证号，18 位（或 15 位）。普通用户查询时自动脱敏，后四位用作个人登录凭据",
+        "gender": "性别，填 男 或 女",
+        "age": "年龄，填整数",
+        "assistDate": "协理时间（退出实职领导岗位、转任协理的时间）。格式 yyyy-MM-dd，如 2020-05-01",
+        "hireDate": "入职时间，可只填到年月，如 2018年7月；系统按当月 1 日存入",
+        "bRole": "互为 AB 角的人员姓名。匹配时两人培训时间重叠会冲突，只填其中一人的对应方即可",
+        "cadreLevel": "干部级别，如 正科级 / 副科级",
+        "staffGrade": "职员职级，如 四级职员",
+        "isPartySec": "是否为党支部书记，填 是 或 否",
+        "trainedRecords": "该人员已参加过的培训班次，多个用顿号分隔。注意：此列由培训记录自动汇总，不建议手工填写",
+        "totalHours": "累计培训学时。注意：此列由培训记录自动汇总，不建议手工填写",
+        "isProdHead": "是否为生产分管负责人，填 是 或 否。为是时培训期次需避开春检与秋检",
+        "remark": "备注，可留空",
+    },
+    "pxe_training_plan": {
+        "batchId": "批次标识。同一批导入的计划共用，留空时系统自动生成",
+        "planYear": "计划年度，4 位年份，如 2027",
+        "seqNo": "本表内的行号，仅用于排序展示",
+        "className": "班次名称，如 四级领导人员进修班",
+        "sessionNo": "期次，填 第一期 / 第二期，或直接填 1 / 2",
+        "trainPeriod": "参培时间原文，如 2027年3月16日至3月30日。填写后系统自动拆出开始日期、结束日期与年度",
+        "startDate": "开始日期，格式 yyyy-MM-dd。填了参培时间时可留空",
+        "endDate": "结束日期，格式 yyyy-MM-dd。填了参培时间时可留空",
+        "trainPlace": "培训地点",
+        "planCount": "计划人数，填整数",
+        "targetGroup": "参培对象，如 2026年新提任四级正职领导人员",
+        "ruleDesc": "本班次的调训规则说明，如 近3年未参培优先",
+        "ruleKey": "规则标识，用于关联通用规则，如 jxb_normal",
+        "remark": "备注，可留空",
+    },
+    "pxe_quota_alloc": {
+        "planId": "培训计划编号，一般留空；宽表导入时系统按班次与期次自动匹配，手工填需填计划的 UUID",
+        "unitName": "单位简称，如 济南公司",
+        "quotaCount": "该单位在该班次期次的名额数，填整数",
+        "remark": "备注，可留空",
+    },
+    "pxe_train_record": {
+        "planId": "培训计划编号，留空即可；系统按下方年度加班次加期次自动匹配计划",
+        "empId": "员工编号，需与人员信息表中的编号一致",
+        "empName": "姓名，需与人员信息表中该编号对应的姓名一致",
+        "planYear": "培训年度，如 2027",
+        "className": "班次名称，如 四级领导人员进修班",
+        "classType": "班次类别，如 进修班 / 县班子班 / 新提任班，可留空",
+        "sessionNo": "期次，填 第一期 或 1",
+        "trainPeriod": "参培时间原文，如 2027年3月16日至3月30日。填写后自动拆出起止日期",
+        "startDate": "开始日期 yyyy-MM-dd，填了参培时间可留空",
+        "endDate": "结束日期 yyyy-MM-dd，填了参培时间可留空",
+        "hours": "本次培训学时，填整数。注意：人员信息表里的累计学时由本列自动汇总",
+        "unitAtTime": "参培时所在单位，如 济南公司；跨单位交流时用于核对",
+        "dataSource": "数据来源，如 自办班 / 送培 / 国网学堂 / 系统匹配确认",
+        "remark": "备注，可留空",
+    },
+    "pxe_training_rule": {
+        "ruleType": "规则类型，填 硬规则 或 软规则。硬规则用于剔除不符合条件的人，软规则用于优先排序",
+        "ruleCode": "规则编码，可留空；留空时系统按规则名称自动生成，同名规则会复用已有编码",
+        "ruleName": "规则名称，如 硬规则一：AB角不得同出",
+        "ruleContent": "规则内容，写明判定条件。系统会按内容里的关键词识别到对应执行逻辑",
+        "priority": "优先级，数字越小越先执行",
+        "enabled": "是否启用，填 1 启用 或 0 停用",
+        "remark": "备注，可留空",
+    },
+}
+
+# =========================================
+# 模板样例行（浅色显示，导入前可删除）
+# =========================================
+SAMPLE_ROWS = {
+    "pxe_leader_info": {
+        "seqNo": 1, "regionName": "济南", "unitName": "济南公司", "empName": "张三",
+        "empId": "00010001", "idCard": "370102198001011234", "gender": "男", "age": 45,
+        "assistDate": "2020-05-01", "hireDate": "2018-07-01", "bRole": "李四",
+        "cadreLevel": "正科级", "staffGrade": "", "isPartySec": "是",
+        "trainedRecords": "四级领导人员进修班 第一期", "totalHours": 120, "isProdHead": "否", "remark": "",
+    },
+    "pxe_training_plan": {
+        "batchId": "", "planYear": "2027", "seqNo": 1, "className": "四级领导人员进修班",
+        "sessionNo": "第一期", "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "",
+        "trainPlace": "临沂校区", "planCount": 70, "targetGroup": "四级领导人员",
+        "ruleDesc": "近3年未参培优先", "ruleKey": "jxb_normal", "remark": "",
+    },
+    "pxe_quota_alloc": {
+        "planId": "", "unitName": "济南公司", "quotaCount": 5, "remark": "",
+    },
+    "pxe_train_record": {
+        "planId": "", "empId": "00010001", "empName": "张三", "planYear": "2027",
+        "className": "四级领导人员进修班", "classType": "进修班", "sessionNo": "第一期",
+        "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "", "hours": 16,
+        "unitAtTime": "济南公司", "dataSource": "国网学堂", "remark": "",
+    },
+    "pxe_training_rule": {
+        "ruleType": "硬规则", "ruleCode": "", "ruleName": "硬规则一：AB角不得同出",
+        "ruleContent": "互为AB角的两名领导人员外出培训时间重叠时不得同时参培", "priority": 1,
+        "enabled": "1", "remark": "",
+    },
 }
 
 CHINESE_DIGITS = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
@@ -631,14 +740,76 @@ def write_excel(filepath, table_name, rows):
 
 
 def write_template(filepath, table_name):
-    """生成该表的空录入模板（表头 + 一行样例）"""
+    """生成该表的录入模板（表头 + 字段说明批注 + 字段说明工作表 + 一行样例）"""
     table_name = normalize_table(table_name)
     if table_name not in FIELD_MAPS:
         return {"ok": False, "error": f"未知表名: {table_name}"}
-    result = write_excel(filepath, table_name, [])
-    if not result.get("ok"):
-        return result
-    return {"ok": True, "file": filepath, "columns": result.get("columns")}
+
+    whitelist = WHITELIST_FIELDS.get(table_name, [])
+    mapping = FIELD_MAPS.get(table_name, {})
+    en_to_cn = {}
+    for cn, en in mapping.items():
+        if en not in en_to_cn or len(cn) < len(en_to_cn[en]):
+            en_to_cn[en] = cn
+    required = set(REQUIRED_FIELDS.get(table_name, ()))
+    notes = FIELD_NOTES.get(table_name, {})
+
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = TABLE_LABELS.get(table_name, table_name)
+
+        # 表头
+        headers = [en_to_cn.get(c, c) for c in whitelist]
+        ws.append(headers)
+        head_font = Font(bold=True, color="FFFFFF")
+        head_fill = PatternFill("solid", fgColor="2D6A9F")
+        for index, column in enumerate(whitelist, 1):
+            cell = ws.cell(row=1, column=index)
+            cell.font = head_font
+            cell.fill = head_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws.column_dimensions[get_column_letter(index)].width = 18
+            # 批注里写含义、是否必填、填写格式
+            note = notes.get(column, "")
+            if note:
+                flag = "【必填】" if column in required else "【可选】"
+                comment = Comment(f"{flag}{note}", "培小e")
+                comment.width = 260
+                comment.height = 90
+                cell.comment = comment
+
+        # 样例行（浅色提示，实际导入前可删除）
+        sample = SAMPLE_ROWS.get(table_name)
+        if sample:
+            ws.append([sample.get(c, "") for c in whitelist])
+            for index in range(1, len(whitelist) + 1):
+                ws.cell(row=2, column=index).font = Font(color="9AA5B1", italic=True)
+        ws.freeze_panes = "A2"
+
+        # 字段说明工作表
+        guide = wb.create_sheet("字段说明")
+        guide.append(["列名", "后端字段", "是否必填", "含义与填写格式"])
+        for index in range(1, 5):
+            cell = guide.cell(row=1, column=index)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="2D6A9F")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        for column in whitelist:
+            guide.append([
+                en_to_cn.get(column, column),
+                column,
+                "必填" if column in required else "可选",
+                notes.get(column, ""),
+            ])
+        for letter, width in (("A", 18), ("B", 18), ("C", 10), ("D", 62)):
+            guide.column_dimensions[letter].width = width
+        guide.freeze_panes = "A2"
+
+        wb.save(filepath)
+    except Exception as exc:
+        return {"ok": False, "error": f"生成模板失败: {exc}"}
+    return {"ok": True, "file": filepath, "columns": whitelist}
 
 
 def main():
