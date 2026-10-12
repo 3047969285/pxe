@@ -222,6 +222,11 @@ TABLE_LABELS = {
     "pxe_training_rule": "通用规则",
 }
 
+# 整册模板：一个工作簿含多个工作表，与原始数据文件结构一致
+BOOK_TEMPLATES = {
+    "pxe_training_plan": ["pxe_training_plan", "pxe_quota_alloc", "pxe_training_rule"],
+}
+
 # =========================================
 # 字段说明（模板批注与「字段说明」工作表使用）
 # =========================================
@@ -740,11 +745,30 @@ def write_excel(filepath, table_name, rows):
 
 
 def write_template(filepath, table_name):
-    """生成该表的录入模板（表头 + 字段说明批注 + 字段说明工作表 + 一行样例）"""
+    """生成录入模板（表头批注 + 一行样例）
+
+    培训计划会生成含三个工作表的整册模板（培训计划 / 名额分配 / 通用规则），
+    与原始数据文件的结构保持一致；其余表为单表模板。
+    """
     table_name = normalize_table(table_name)
     if table_name not in FIELD_MAPS:
         return {"ok": False, "error": f"未知表名: {table_name}"}
 
+    tables = BOOK_TEMPLATES.get(table_name, [table_name])
+    try:
+        wb = Workbook()
+        wb.remove(wb.active)
+        for name in tables:
+            _fill_sheet(wb.create_sheet(TABLE_LABELS.get(name, name)), name)
+        wb.save(filepath)
+    except Exception as exc:
+        return {"ok": False, "error": f"生成模板失败: {exc}"}
+    return {"ok": True, "file": filepath, "sheets": tables,
+            "columns": WHITELIST_FIELDS.get(table_name, [])}
+
+
+def _fill_sheet(ws, table_name):
+    """往一个工作表里写入表头、批注与样例行"""
     whitelist = WHITELIST_FIELDS.get(table_name, [])
     mapping = FIELD_MAPS.get(table_name, {})
     en_to_cn = {}
@@ -754,62 +778,30 @@ def write_template(filepath, table_name):
     required = set(REQUIRED_FIELDS.get(table_name, ()))
     notes = FIELD_NOTES.get(table_name, {})
 
-    try:
-        wb = Workbook()
-        ws = wb.active
-        ws.title = TABLE_LABELS.get(table_name, table_name)
+    ws.append([en_to_cn.get(c, c) for c in whitelist])
+    head_font = Font(bold=True, color="FFFFFF")
+    head_fill = PatternFill("solid", fgColor="2D6A9F")
+    for index, column in enumerate(whitelist, 1):
+        cell = ws.cell(row=1, column=index)
+        cell.font = head_font
+        cell.fill = head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.column_dimensions[get_column_letter(index)].width = 18
+        note = notes.get(column, "")
+        if note:
+            flag = "【必填】" if column in required else "【可选】"
+            comment = Comment(f"{flag}{note}\n（此说明为批注，填写时可忽略）", "培小e")
+            comment.width = 280
+            comment.height = 100
+            cell.comment = comment
 
-        # 表头
-        headers = [en_to_cn.get(c, c) for c in whitelist]
-        ws.append(headers)
-        head_font = Font(bold=True, color="FFFFFF")
-        head_fill = PatternFill("solid", fgColor="2D6A9F")
-        for index, column in enumerate(whitelist, 1):
-            cell = ws.cell(row=1, column=index)
-            cell.font = head_font
-            cell.fill = head_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            ws.column_dimensions[get_column_letter(index)].width = 18
-            # 批注里写含义、是否必填、填写格式
-            note = notes.get(column, "")
-            if note:
-                flag = "【必填】" if column in required else "【可选】"
-                comment = Comment(f"{flag}{note}", "培小e")
-                comment.width = 260
-                comment.height = 90
-                cell.comment = comment
-
-        # 样例行（浅色提示，实际导入前可删除）
-        sample = SAMPLE_ROWS.get(table_name)
-        if sample:
-            ws.append([sample.get(c, "") for c in whitelist])
-            for index in range(1, len(whitelist) + 1):
-                ws.cell(row=2, column=index).font = Font(color="9AA5B1", italic=True)
-        ws.freeze_panes = "A2"
-
-        # 字段说明工作表
-        guide = wb.create_sheet("字段说明")
-        guide.append(["列名", "后端字段", "是否必填", "含义与填写格式"])
-        for index in range(1, 5):
-            cell = guide.cell(row=1, column=index)
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill("solid", fgColor="2D6A9F")
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-        for column in whitelist:
-            guide.append([
-                en_to_cn.get(column, column),
-                column,
-                "必填" if column in required else "可选",
-                notes.get(column, ""),
-            ])
-        for letter, width in (("A", 18), ("B", 18), ("C", 10), ("D", 62)):
-            guide.column_dimensions[letter].width = width
-        guide.freeze_panes = "A2"
-
-        wb.save(filepath)
-    except Exception as exc:
-        return {"ok": False, "error": f"生成模板失败: {exc}"}
-    return {"ok": True, "file": filepath, "columns": whitelist}
+    # 样例行：浅色斜体，导入前删除即可
+    sample = SAMPLE_ROWS.get(table_name)
+    if sample:
+        ws.append([sample.get(c, "") for c in whitelist])
+        for index in range(1, len(whitelist) + 1):
+            ws.cell(row=2, column=index).font = Font(color="9AA5B1", italic=True)
+    ws.freeze_panes = "A2"
 
 
 def main():
