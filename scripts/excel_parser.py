@@ -214,7 +214,7 @@ REQUIRED_FIELDS = {
     "pxe_training_plan": ("planYear", "className", "sessionNo"),
     "pxe_quota_alloc": ("planYear", "className", "sessionNo", "unitName", "quotaCount"),
     "pxe_train_record": ("empId", "empName", "planYear", "className", "sessionNo"),
-    "pxe_training_rule": ("ruleType", "ruleCode", "ruleName"),
+    "pxe_training_rule": ("ruleType", "ruleName"),
 }
 
 # 需要转数字的字段
