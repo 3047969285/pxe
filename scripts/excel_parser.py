@@ -238,14 +238,14 @@ BOOK_TEMPLATES = {
 # 模板中不展示的字段（数据模型保留，只是模板里不列，避免干扰填报）
 TEMPLATE_HIDDEN_FIELDS = {
     "pxe_leader_info": {"remark"},
-    # 培训计划：不填参培时间，直接给开始/结束日期
-    "pxe_training_plan": {"remark", "trainPeriod"},
+    # 培训计划：不填参培时间（直接给开始/结束日期），也不展示英文的规则标识
+    "pxe_training_plan": {"remark", "trainPeriod", "ruleKey"},
     # 名额分配：不填计划编号，按年度+班次+期次自动匹配
     "pxe_quota_alloc": {"remark", "planId"},
     # 培训记录：不填计划编号与参培时间，直接给开始/结束日期
     "pxe_train_record": {"remark", "planId", "trainPeriod"},
-    # 通用规则：不填优先级，导入时按行序自动编排执行次序
-    "pxe_training_rule": {"remark", "priority"},
+    # 通用规则：不填优先级（按行序自动编排），也不展示规则编码（按规则名称自动生成）
+    "pxe_training_rule": {"remark", "priority", "ruleCode"},
 }
 
 # =========================================
