@@ -761,6 +761,12 @@ def parse_excel(filepath, table_name, mode="data", sheet_name=None):
             continue
         rows.append(obj)
 
+    # 规则表：未填优先级时按出现顺序补 1、2、3…，保证执行次序确定
+    if table_name == "pxe_training_rule":
+        for index, row in enumerate(rows, start=1):
+            if row.get("priority") in (None, ""):
+                row["priority"] = index
+
     wb.close()
     if not rows:
         return {"ok": False, "error": "未解析到有效数据行；请检查工作表、表头行与字段映射"}

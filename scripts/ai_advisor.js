@@ -245,10 +245,18 @@ async function generateAdvice({ year = '2027', limitPerUnit, outDir, account, cr
       unknownRules.push({ code: rule.ruleCode, name: rule.ruleName });
       return;
     }
-    const entry = Object.assign({}, resolved, { name: rule.ruleName, content: rule.ruleContent });
+    const entry = Object.assign({}, resolved, {
+      name: rule.ruleName,
+      content: rule.ruleContent,
+      priority: Number(rule.priority == null || rule.priority === '' ? 999 : rule.priority),
+    });
     const isHard = String(rule.ruleType) === '硬规则' || resolved.code.startsWith('HARD_');
     (isHard ? hardRules : softRules).push(entry);
   });
+  // 优先级数字越小越先执行；未填优先级的排到最后
+  const byPriority = (a, b) => a.priority - b.priority;
+  hardRules.sort(byPriority);
+  softRules.sort(byPriority);
 
   const usedPlanIds = new Set(quotas.map(q => q.planId));
   const planResults = [];
