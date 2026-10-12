@@ -1,32 +1,36 @@
 // =====================================================
 // display.js —— 命令行中文展示层
-// 把接口返回的英文字段、原始 JSON，渲染成中文表格
-// 所有命令的输出统一走这里，保证界面一致、人看得懂
+// 字段中文名统一从 field_map.js 反推，避免两处维护
 // =====================================================
+const { FIELD_ALIASES, resolveField } = require('./field_map');
 
-// 英文字段 → 中文列名
-const FIELD_LABELS = {
-  // 人员
-  leaderId: '人员标识', seqNo: '序号', regionName: '地区', unitName: '单位',
-  empName: '姓名', empId: '员工编号', idCard: '身份证号', gender: '性别', age: '年龄',
-  assistDate: '协理时间', hireDate: '入职时间', bRole: 'B角', cadreLevel: '干部级别',
-  staffGrade: '职员职级', isPartySec: '是否党支部书记', trainedRecords: '培训记录',
-  totalHours: '累计学时', isProdHead: '是否生产分管负责人', remark: '备注',
-  // 计划
-  planId: '计划编号', batchId: '批次标识', planYear: '计划年度', className: '班次名称',
-  sessionNo: '期次', trainPeriod: '参培时间', startDate: '开始日期', endDate: '结束日期',
-  trainPlace: '培训地点', planCount: '计划人数', targetGroup: '参培对象',
-  ruleDesc: '调训规则', ruleKey: '规则标识',
-  // 名额
-  quotaId: '名额标识', quotaCount: '名额数',
-  // 记录
-  recordId: '记录编号', classType: '班次类别', hours: '学时', unitAtTime: '参培时所在单位',
-  dataSource: '数据来源',
-  // 规则
-  ruleId: '规则编号', ruleType: '规则类型', ruleCode: '规则编码', ruleName: '规则名称',
-  ruleContent: '规则内容', priority: '优先级', enabled: '是否启用',
-  delFlag: '删除标志', createTime: '创建时间', updateTime: '更新时间',
-};
+// 后端字段 → 中文名（取映射表里最短的那个中文别名）
+const FIELD_LABELS = (() => {
+  const labels = {};
+  Object.keys(FIELD_ALIASES).forEach(table => {
+    Object.entries(FIELD_ALIASES[table]).forEach(([cn, field]) => {
+      if (!labels[field] || cn.length < labels[field].length) {
+        labels[field] = cn;
+      }
+    });
+  });
+  // 展示用词以清晰为准，覆盖个别过短的别名
+  Object.assign(labels, {
+    seqNo: '序号', regionName: '地区', unitName: '单位', empName: '姓名', empId: '员工编号',
+    idCard: '身份证号', assistDate: '协理时间', hireDate: '入职时间', bRole: 'B角',
+    cadreLevel: '干部级别', staffGrade: '职员职级', isPartySec: '是否党支部书记',
+    trainedRecords: '培训记录', totalHours: '累计学时', isProdHead: '是否生产分管负责人',
+    planId: '计划编号', batchId: '批次标识', planYear: '计划年度', className: '班次名称',
+    sessionNo: '期次', trainPeriod: '参培时间', startDate: '开始日期', endDate: '结束日期',
+    trainPlace: '培训地点', planCount: '计划人数', targetGroup: '参培对象',
+    ruleDesc: '调训规则', ruleKey: '规则标识', quotaId: '名额标识', quotaCount: '名额数',
+    recordId: '记录编号', classType: '班次类别', hours: '学时', unitAtTime: '参培时所在单位',
+    dataSource: '数据来源', ruleId: '规则编号', ruleType: '规则类型', ruleCode: '规则编码',
+    ruleName: '规则名称', ruleContent: '规则内容', priority: '优先级', enabled: '是否启用',
+    delFlag: '删除标志', createTime: '创建时间', updateTime: '更新时间',
+  });
+  return labels;
+})();
 
 // 表名 → 中文名
 const TABLE_LABELS = {
@@ -137,4 +141,4 @@ function fail(text) {
   console.log('  × ' + text);
 }
 
-module.exports = { labelOf, labelOfTable, table, title, info, ok, warn, fail, blank, clip, width };
+module.exports = { labelOf, labelOfTable, table, title, info, ok, warn, fail, blank, clip, width, resolveField };

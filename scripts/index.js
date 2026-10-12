@@ -12,6 +12,41 @@ const trainer = require('./train_api');
 const ui = require('./display');
 const { resolveField } = require('./field_map');
 
+// =====================================================
+// 结果目录与操作日志
+// =====================================================
+
+// 解析本次运行的结果目录（按日期归档时带日期子目录）
+function resolveOutDir() {
+  const base = CFG.outDir;
+  if (!CFG.outputByDate) {
+    return base;
+  }
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return path.join(base, `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+}
+
+// 追加一行操作日志，记录时间、命令与结果
+function logAction(action, detail, okFlag) {
+  if (!CFG.operationLog) {
+    return;
+  }
+  try {
+    const dir = CFG.outDir;
+    fs.mkdirSync(dir, { recursive: true });
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+      + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const line = `[${stamp}] ${okFlag ? '成功' : '失败'}  ${action}  ${detail}
+`;
+    fs.appendFileSync(path.join(dir, '操作日志.txt'), line, 'utf8');
+  } catch (err) {
+    // 日志写不了不影响主流程
+  }
+}
+
 const SCRIPTS = __dirname;
 
 // =====================================================
@@ -47,6 +82,9 @@ const HELP = `
 
 【统计看板】
   看板 --年度 2027 [--输出 文件路径]                  生成 HTML 统计看板
+
+【自检】
+  自检                                                  检查接口配置、后端连通、结果目录、解析环境
 
 【其它】
   帮助                                                  显示本菜单
@@ -103,6 +141,77 @@ function toFilters(pairs, operator) {
     const at = pair.indexOf('=');
     return at < 0 ? null : { field: pair.slice(0, at).trim(), operator, value: pair.slice(at + 1).trim() };
   }).filter(Boolean);
+}
+
+
+// =====================================================
+// 命令：自检（逐个检查运行依赖）
+// =====================================================
+async function cmdSelfCheck() {
+  ui.title('运行环境自检');
+  let allOk = true;
+
+  // 1 接口配置
+  ui.info(`接口地址：${CFG.api.baseUrl}`);
+  ui.info(`接口密钥：${CFG.api.apiSecret ? '已配置' : '未配置'}`);
+  if (!CFG.api.baseUrl || !CFG.api.apiSecret) {
+    ui.fail('接口地址或密钥未配置，请检查 scripts/config.js');
+    allOk = false;
+  } else {
+    ui.ok('接口配置正常');
+  }
+
+  // 2 后端连通
+  const probe = await trainer.query({ table: 'pxe_training_rule', pageNum: 1, pageSize: 1 });
+  if (probe.ok) {
+    ui.ok(`后端连通正常（规则表共 ${probe.total} 条）`);
+  } else {
+    ui.fail(`后端不通：${probe.message || probe.error}`);
+    ui.info('请确认后端服务已启动，且地址与 config.js 一致');
+    allOk = false;
+  }
+
+  // 3 结果目录可写
+  const dir = resolveOutDir();
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probeFile = path.join(dir, '.write_test');
+    fs.writeFileSync(probeFile, 'ok');
+    fs.unlinkSync(probeFile);
+    ui.ok(`结果目录可写：${dir}`);
+  } catch (err) {
+    ui.fail(`结果目录不可写：${dir}（${err.message}）`);
+    allOk = false;
+  }
+
+  // 4 图表库
+  const charts = path.join(__dirname, 'assets', 'echarts.min.js');
+  if (fs.existsSync(charts)) {
+    ui.ok('图表库就绪（生成 HTML 可离线打开）');
+  } else {
+    ui.warn('未找到 assets/echarts.min.js，HTML 图表将回退到外网 CDN');
+  }
+
+  // 5 Python 解析环境
+  try {
+    const { execFileSync } = require('child_process');
+    const ver = execFileSync(CFG.python || 'python', ['-c', 'import openpyxl,sys;print(openpyxl.__version__)'],
+      { encoding: 'utf8' }).trim();
+    ui.ok(`Excel 解析环境就绪（openpyxl ${ver}）`);
+  } catch (err) {
+    ui.fail('未找到 Python 或 openpyxl，Excel 解析将不可用');
+    allOk = false;
+  }
+
+  ui.blank();
+  if (allOk) {
+    logAction('自检', '全部通过', true);
+    ui.ok('自检通过，可以正常使用全部功能');
+    return 0;
+  }
+  logAction('自检', '存在未通过项', false);
+  ui.fail('自检未全部通过，请按上面提示处理');
+  return 1;
 }
 
 // =====================================================
@@ -171,7 +280,7 @@ async function cmdExport(tableName, options) {
     ui.fail(all.message || all.error || '接口调用失败');
     return 1;
   }
-  const target = options['输出'] || path.join(CFG.outDir, `${ui.labelOfTable(table)}.xlsx`);
+  const target = options['输出'] || path.join(resolveOutDir(), `${ui.labelOfTable(table)}.xlsx`);
   const jsonPath = path.join(CFG.processDir || os.tmpdir(), `peixiaoe_export_${Date.now()}.json`);
   fs.writeFileSync(jsonPath, JSON.stringify(all.rows), 'utf8');
   let result;
@@ -187,13 +296,14 @@ async function cmdExport(tableName, options) {
   ui.title('导出完成');
   ui.ok(`${ui.labelOfTable(table)}：已导出 ${all.rows.length} 条`);
   ui.info(`文件位置：${target}`);
+  logAction('导出', `${ui.labelOfTable(table)} ${all.rows.length} 条 -> ${target}`, true);
   return 0;
 }
 
 async function cmdTemplate(tableName, options) {
   const { runParser } = require('./import_excel');
   const table = tableOf(tableName);
-  const target = options['输出'] || path.join(CFG.outDir, `${ui.labelOfTable(table)}导入模板.xlsx`);
+  const target = options['输出'] || path.join(resolveOutDir(), `${ui.labelOfTable(table)}导入模板.xlsx`);
   const result = runParser(['--template', target, table]);
   if (!result.ok) {
     ui.fail(`生成模板失败：${result.error}`);
@@ -201,6 +311,7 @@ async function cmdTemplate(tableName, options) {
   }
   ui.title('模板已生成');
   ui.ok(`文件位置：${target}`);
+  logAction('模板', `${ui.labelOfTable(table)} -> ${target}`, true);
   return 0;
 }
 
@@ -229,6 +340,7 @@ async function cmdModify(positionals, options) {
   }
   ui.title('修改完成');
   ui.ok(`已修改 ${result.data} 条数据`);
+  logAction('修改', `${ui.labelOfTable(table)} ${result.data} 条`, true);
   return 0;
 }
 
@@ -249,6 +361,7 @@ async function cmdRemove(positionals, options) {
   }
   ui.title('删除完成');
   ui.ok(`已删除 ${result.data} 条数据（软删除，数据仍保留）`);
+  logAction('删除', `${ui.labelOfTable(table)} ${result.data} 条`, true);
   return 0;
 }
 
@@ -260,7 +373,7 @@ async function cmdAdvice(options) {
   const result = await advisor.generateAdvice({
     year: options['年度'] || '2027',
     limitPerUnit: options['每单位上限'] ? Number(options['每单位上限']) : undefined,
-    outDir: options['输出'] || CFG.outDir,
+    outDir: options['输出'] || resolveOutDir(),
     account: options.account,
     credential: options.credential,
   });
@@ -272,6 +385,7 @@ async function cmdAdvice(options) {
   ui.title('建议名单已生成');
   ui.ok(`共 ${result.summary.plans} 个班次，建议 ${result.summary.total} 人次，剔除 ${result.summary.excluded} 人次`);
   (result.files || []).forEach(file => ui.info(`文件位置：${file}`));
+  logAction('建议名单', `${result.summary.plans} 个班次 / ${result.summary.total} 人次`, true);
   return 0;
 }
 
@@ -279,7 +393,7 @@ async function cmdDashboard(options) {
   const viewer = require('./html_viewer');
   const result = await viewer.buildDashboard({
     year: options['年度'] || '2027',
-    target: options['输出'] || path.join(CFG.outDir, `培小e看板_${options['年度'] || '2027'}.html`),
+    target: options['输出'] || path.join(resolveOutDir(), `培小e看板_${options['年度'] || '2027'}.html`),
     account: options.account,
     credential: options.credential,
   });
@@ -290,6 +404,7 @@ async function cmdDashboard(options) {
   }
   ui.title('统计看板已生成');
   ui.ok(`文件位置：${result.file}`);
+  logAction('统计看板', `${options['年度'] || '2027'} -> ${result.file}`, true);
   return 0;
 }
 
@@ -320,6 +435,8 @@ async function main() {
       return await cmdAdvice(options);
     case '看板':
       return await cmdDashboard(options);
+    case '自检':
+      return await cmdSelfCheck();
     default:
       console.error(`
   没有这个命令：「${positionals[0]}」

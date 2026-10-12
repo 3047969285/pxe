@@ -10,6 +10,25 @@ const CFG = require('./config');
 const trainer = require('./train_api');
 const ui = require('./display');
 
+// 追加一条导入记录到操作日志
+function logImport(table, count, okFlag) {
+  if (!CFG.operationLog) {
+    return;
+  }
+  try {
+    fs.mkdirSync(CFG.outDir, { recursive: true });
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+      + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    fs.appendFileSync(CFG.processDir ? require('path').join(CFG.outDir, '操作日志.txt') : '操作日志.txt',
+      `[${stamp}] ${okFlag ? '成功' : '失败'}  导入  ${ui.labelOfTable(table)} ${count} 条
+`, 'utf8');
+  } catch (err) {
+    // 日志失败不影响主流程
+  }
+}
+
 const PYTHON = CFG.python || 'python';
 const PARSER = path.join(__dirname, 'excel_parser.py');
 const BATCH_SIZE = 500;
@@ -153,6 +172,7 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     }
     ui.title('导入完成');
     ui.ok(`${ui.labelOfTable(targetTable)}：新入库或更新 ${resolved.length} 条`);
+    logImport(targetTable, resolved.length, true);
     return 0;
   }
 
@@ -181,6 +201,7 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
   }
   ui.title('导入完成');
   ui.ok(`${ui.labelOfTable(targetTable)}：新入库或更新 ${rows.length} 条`);
+  logImport(targetTable, rows.length, true);
   return 0;
 }
 

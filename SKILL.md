@@ -4,7 +4,8 @@ category_id: 1
 name: 培小e
 summary: 培训数据智能助手：Excel 入库、查询、导出、建议名单、统计看板
 core_features: Excel 自动识别入库、名额交叉表拍平、中文条件查询、Excel 导出与模板、应训未训建议名单、HTML 统计看板、学时自动汇总
-trigger_mode: 提及培训数据、培训名单、培训看板、培训模板、导入培训 Excel、出建议名单等需求时触发
+trigger_keywords: 培小e,培训数据,培训名单,培训计划,培训记录,名额分配,领导人员,参训名单,建议名单,应训未训,培训看板,培训大屏,培训模板,导入培训,Excel导入,培训学时,调训规则,匹配规则,培训统计
+trigger_mode: 用户提及培训数据、培训名单、培训计划、培训记录、名额分配、培训看板、培训模板、导入培训 Excel、出建议名单、统计培训数据等需求时触发；也适用于询问某班次或某单位的参训情况
 use_scenarios: 培训 Excel 批量入库、查询班次或单位参训名单、导出培训明细、生成建议名单、生成培训看板
 description: 培小e 是培训数据管理与分析智能体。所有能力已固化为命令，模型按本文路由到对应参考文件即可，不必自行拼接口、写脚本或改动技能文件。
 ---
@@ -34,7 +35,8 @@ description: 培小e 是培训数据管理与分析智能体。所有能力已�
 | 出建议名单 | `node index.js 建议 --年度 2027 [--每单位上限 N]` | [规则引擎](references/rules.md) |
 | 出统计看板 | `node index.js 看板 --年度 2027` | [规则引擎](references/rules.md) |
 | 看全部命令 | `node index.js 帮助` | — |
-| 后端通不通 | `node index.js 查询 规则 --每页 1` | [故障排查](references/troubleshooting.md) |
+| 检查运行环境 | `node index.js 自检` | [故障排查](references/troubleshooting.md) |
+| 后端通不通 | `node index.js 自检`（或 `查询 规则 --每页 1`） | [故障排查](references/troubleshooting.md) |
 | 字段叫什么 | — | [字段对照表](references/field_mapping.md) |
 | 接口长什么样 | — | [接口契约](references/api_contract.md) |
 | 命令报错了 | — | [故障排查](references/troubleshooting.md) |
