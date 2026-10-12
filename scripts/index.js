@@ -9,6 +9,8 @@ const fs = require('fs');
 const os = require('os');
 const CFG = require('./config');
 const trainer = require('./train_api');
+const ui = require('./display');
+const { resolveField } = require('./field_map');
 
 const SCRIPTS = __dirname;
 
@@ -19,20 +21,21 @@ const HELP = `
 培小e 培训数据助手 —— 可用命令
 
 【数据导入】
-  导入 <文件> [--table leader|plan|quota|record|rule] [--wide] [--sheet 名称]
-      不传 --table 时自动识别表类型
+  导入 <文件> [--table 人员|计划|名额|记录|规则] [--wide] [--sheet 工作表名]
+      不传 --table 时自动识别文件属于哪张表
       --wide 用于「名额分配」这类 单位×班次期次 的交叉表
       例：node index.js 导入 "D:/培小e输入/人员.xlsx"
-      例：node index.js 导入 "D:/培小e输入/名额.xlsx" --wide
+      例：node index.js 导入 "D:/培小e输入/计划表.xlsx" --wide
 
 【数据查询】
   查询 <表> [--条件 字段=值] [--like 字段=值] [--字段 a,b,c] [--排序 字段] [--倒序] [--页 N] [--每页 N]
-      表可取 leader|plan|quota|record|rule
-      例：node index.js 查询 leader --like 姓名=张 --字段 姓名,单位 --每页 10
-      例：node index.js 查询 record --条件 单位=济南公司 --排序 学时 --倒序
+      表 可取：人员 / 计划 / 名额 / 记录 / 规则
+      字段 写中文即可，如 姓名、单位、班次名称、学时
+      例：node index.js 查询 人员 --like 姓名=张 --字段 姓名,单位 --每页 10
+      例：node index.js 查询 记录 --条件 单位=济南公司 --排序 学时 --倒序
 
 【数据导出】
-  导出 <表> [--输出 文件路径]        导出全表为 Excel
+  导出 <表> [--输出 文件路径]        导出该表为 Excel（列与导入模板一致）
   模板 <表> [--输出 文件路径]        生成空白录入模板
 
 【数据维护】
@@ -48,7 +51,7 @@ const HELP = `
 【其它】
   帮助                                                  显示本菜单
 
-提示：所有命令默认使用 config.js 里的管理员凭据；可用 --account / --credential 指定身份。
+说明：所有命令默认使用 config.js 里的管理员凭据；可用 --account / --credential 指定身份。
 `;
 
 // =====================================================
@@ -143,11 +146,16 @@ async function cmdQuery(tableName, options, argv) {
     credential: options.credential,
   });
   if (!result.ok) {
-    console.error(`查询失败: ${result.message || result.error}`);
+    ui.title('查询失败');
+    ui.fail(result.message || result.error || '接口调用失败');
     return 1;
   }
-  console.log(`共 ${result.total} 条，当前第 ${result.pageNum} 页，返回 ${result.rows.length} 条`);
-  console.log(JSON.stringify(result.rows, null, 2));
+  ui.title(`查询结果 · ${ui.labelOfTable(table)}`);
+  ui.info(`共 ${result.total} 条，当前第 ${result.pageNum} 页，本页显示 ${result.rows.length} 条`);
+  const showColumns = options['字段']
+    ? String(options['字段']).split(',').map(s => resolveField(table, s.trim())).filter(Boolean)
+    : undefined;
+  ui.table(result.rows, showColumns);
   return 0;
 }
 
@@ -159,7 +167,8 @@ async function cmdExport(tableName, options) {
   const table = tableOf(tableName);
   const all = await trainer.queryAll(table, {}, options.account, options.credential);
   if (!all.ok) {
-    console.error(`导出失败: ${all.message || all.error}`);
+    ui.title('导出失败');
+    ui.fail(all.message || all.error || '接口调用失败');
     return 1;
   }
   const target = options['输出'] || path.join(CFG.outDir || '.', `${table}.xlsx`);
@@ -172,10 +181,12 @@ async function cmdExport(tableName, options) {
     fs.unlinkSync(jsonPath);
   }
   if (!result.ok) {
-    console.error(`写 Excel 失败: ${result.error}`);
+    ui.fail(`写入 Excel 失败：${result.error}`);
     return 1;
   }
-  console.log(`已导出 ${all.rows.length} 条 -> ${target}`);
+  ui.title('导出完成');
+  ui.ok(`${ui.labelOfTable(table)}：已导出 ${all.rows.length} 条`);
+  ui.info(`文件位置：${target}`);
   return 0;
 }
 
@@ -185,10 +196,11 @@ async function cmdTemplate(tableName, options) {
   const target = options['输出'] || path.join(CFG.outDir || '.', `${table}-模板.xlsx`);
   const result = runParser(['--template', target, table]);
   if (!result.ok) {
-    console.error(`生成模板失败: ${result.error}`);
+    ui.fail(`生成模板失败：${result.error}`);
     return 1;
   }
-  console.log(`模板已生成 -> ${target}`);
+  ui.title('模板已生成');
+  ui.ok(`文件位置：${target}`);
   return 0;
 }
 
@@ -211,10 +223,12 @@ async function cmdModify(positionals, options) {
   });
   const result = await trainer.update({ table, single: data, account: options.account, credential: options.credential });
   if (!result.ok) {
-    console.error(`修改失败: ${result.message || result.error}`);
+    ui.title('修改失败');
+    ui.fail(result.message || result.error || '接口调用失败');
     return 1;
   }
-  console.log(`修改成功，影响 ${result.data} 行`);
+  ui.title('修改完成');
+  ui.ok(`已修改 ${result.data} 条数据`);
   return 0;
 }
 
@@ -229,10 +243,12 @@ async function cmdRemove(positionals, options) {
   const data = { [pair.slice(0, at).trim()]: pair.slice(at + 1).trim() };
   const result = await trainer.del({ table, single: data, account: options.account, credential: options.credential });
   if (!result.ok) {
-    console.error(`删除失败: ${result.message || result.error}`);
+    ui.title('删除失败');
+    ui.fail(result.message || result.error || '接口调用失败');
     return 1;
   }
-  console.log(`删除成功，影响 ${result.data} 行`);
+  ui.title('删除完成');
+  ui.ok(`已删除 ${result.data} 条数据（软删除，数据仍保留）`);
   return 0;
 }
 
@@ -249,11 +265,13 @@ async function cmdAdvice(options) {
     credential: options.credential,
   });
   if (!result.ok) {
-    console.error(`生成建议失败: ${result.message || result.error}`);
+    ui.title('生成失败');
+    ui.fail(result.message || result.error || '接口调用失败');
     return 1;
   }
-  console.log(`建议名单已生成：${result.summary.plans} 个班次，建议 ${result.summary.total} 人次`);
-  (result.files || []).forEach(file => console.log('  ->', file));
+  ui.title('建议名单已生成');
+  ui.ok(`共 ${result.summary.plans} 个班次，建议 ${result.summary.total} 人次，剔除 ${result.summary.excluded} 人次`);
+  (result.files || []).forEach(file => ui.info(`文件位置：${file}`));
   return 0;
 }
 
@@ -266,10 +284,12 @@ async function cmdDashboard(options) {
     credential: options.credential,
   });
   if (!result.ok) {
-    console.error(`生成看板失败: ${result.message || result.error}`);
+    ui.title('生成失败');
+    ui.fail(result.message || result.error || '接口调用失败');
     return 1;
   }
-  console.log(`看板已生成 -> ${result.file}`);
+  ui.title('统计看板已生成');
+  ui.ok(`文件位置：${result.file}`);
   return 0;
 }
 
@@ -301,13 +321,15 @@ async function main() {
     case '看板':
       return await cmdDashboard(options);
     default:
-      console.error(`未知命令: ${positionals[0]}`);
+      console.error(`
+  没有这个命令：「${positionals[0]}」
+`);
       console.log(HELP);
       return 1;
   }
 }
 
 main().then(code => process.exit(code || 0)).catch(err => {
-  console.error('执行异常:', err.message);
+  ui.fail('执行出错：' + err.message);
   process.exit(1);
 });

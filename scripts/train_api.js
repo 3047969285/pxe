@@ -12,11 +12,23 @@
 const CFG = require('./config');
 const { resolveField } = require('./field_map');
 
-// 短表名转数据库表名
+// 短表名（含中文名）转数据库表名
+const TABLE_ALIAS = {
+  leader: 'pxe_leader_info', '人员': 'pxe_leader_info', '人员信息': 'pxe_leader_info',
+  '领导人员信息': 'pxe_leader_info',
+  plan: 'pxe_training_plan', '计划': 'pxe_training_plan', '培训计划': 'pxe_training_plan',
+  quota: 'pxe_quota_alloc', '名额': 'pxe_quota_alloc', '名额分配': 'pxe_quota_alloc',
+  record: 'pxe_train_record', '记录': 'pxe_train_record', '培训记录': 'pxe_train_record',
+  rule: 'pxe_training_rule', '规则': 'pxe_training_rule', '通用规则': 'pxe_training_rule',
+};
+
 function normalizeTable(table) {
   const key = table ? String(table).trim() : '';
   if (CFG.tables[key]) {
     return CFG.tables[key];
+  }
+  if (TABLE_ALIAS[key]) {
+    return TABLE_ALIAS[key];
   }
   return key || CFG.tables.record;
 }

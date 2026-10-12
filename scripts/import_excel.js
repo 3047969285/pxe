@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const CFG = require('./config');
 const trainer = require('./train_api');
+const ui = require('./display');
 
 const PYTHON = CFG.python || 'python';
 const PARSER = path.join(__dirname, 'excel_parser.py');
@@ -87,7 +88,8 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     return 1;
   }
 
-  console.log(`解析文件: ${file}${wide ? '（名额宽表模式）' : ''}`);
+  ui.title('正在导入数据');
+  ui.info(`文件：${path.basename(file)}${wide ? '（名额分配交叉表）' : ''}`);
   const args = wide ? [file, '--wide'] : [file, table || '--auto'];
   if (sheet) {
     args.push('--sheet', sheet);
@@ -96,18 +98,18 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
   try {
     parsed = runParser(args);
   } catch (err) {
-    console.error(`解析失败: ${err.message}`);
+    ui.fail(`读取文件失败：${err.message}`);
     return 1;
   }
   if (!parsed.ok) {
-    console.error(`解析失败: ${parsed.error}`);
+    ui.fail(`解析失败：${parsed.error}`);
     return 1;
   }
   const targetTable = parsed.table;
   const rows = parsed.rows || [];
-  console.log(`识别为 ${targetTable}，共 ${parsed.totalRows} 行`);
+  ui.info(`识别为：${ui.labelOfTable(targetTable)}，共 ${parsed.totalRows} 条数据`);
   if (parsed.warnings) {
-    parsed.warnings.slice(0, 3).forEach(w => console.log(`  提示: ${w}`));
+    parsed.warnings.slice(0, 3).forEach(w => ui.warn(w));
   }
 
   // 名额分配：用户只填 年度+班次+期次，这里回填计划编号
@@ -137,18 +139,20 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
       });
     });
     if (missing.size) {
-      console.error(`以下班次未匹配到培训计划: ${[...missing].join('、')}`);
+      ui.warn(`以下班次未匹配到培训计划，已跳过：${[...missing].join('、')}`);
       if (!resolved.length) {
+        ui.fail('没有任何可入库的名额数据');
         return 1;
       }
     }
-    console.log(`有效名额行 ${resolved.length} 条，开始入库...`);
+    ui.info(`已按年度+班次+期次匹配到培训计划，有效 ${resolved.length} 条`);
     const pushed = await pushRows(targetTable, resolved, account, credential);
     if (!pushed.ok) {
-      console.error(pushed.message);
+      ui.fail(pushed.message);
       return 1;
     }
-    console.log(`入库完成，受影响 ${pushed.affected} 行`);
+    ui.title('导入完成');
+    ui.ok(`${ui.labelOfTable(targetTable)}：新入库或更新 ${resolved.length} 条`);
     return 0;
   }
 
@@ -170,13 +174,13 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     }
   }
 
-  console.log('开始入库...');
   const pushed = await pushRows(targetTable, rows, account, credential);
   if (!pushed.ok) {
-    console.error(pushed.message);
+    ui.fail(pushed.message);
     return 1;
   }
-  console.log(`入库完成，${rows.length} 条数据，受影响 ${pushed.affected} 行`);
+  ui.title('导入完成');
+  ui.ok(`${ui.labelOfTable(targetTable)}：新入库或更新 ${rows.length} 条`);
   return 0;
 }
 
