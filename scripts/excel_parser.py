@@ -853,17 +853,16 @@ def parse_quota_wide(filepath, sheet_name=None):
 
 
 def write_excel(filepath, table_name, rows):
-    """把数据写成 Excel"""
+    """把数据写成 Excel，列与批注与导入模板保持完全一致"""
     table_name = normalize_table(table_name)
     if table_name not in FIELD_MAPS:
         return {"ok": False, "error": f"未知表名: {table_name}"}
-    whitelist = WHITELIST_FIELDS.get(table_name, [])
-    mapping = FIELD_MAPS.get(table_name, {})
-    en_to_cn = {}
-    for cn, en in mapping.items():
-        if en not in en_to_cn or len(cn) < len(en_to_cn[en]):
-            en_to_cn[en] = cn
-    headers = [en_to_cn.get(c, c) for c in whitelist]
+
+    hidden = TEMPLATE_HIDDEN_FIELDS.get(table_name, set())
+    whitelist = [c for c in WHITELIST_FIELDS.get(table_name, []) if c not in hidden]
+    preferred = PREFERRED_HEADERS.get(table_name, {})
+    required = set(REQUIRED_FIELDS.get(table_name, ()))
+    notes = FIELD_NOTES.get(table_name, {})
 
     def cell(value):
         if isinstance(value, (dict, list, tuple)):
@@ -874,11 +873,24 @@ def write_excel(filepath, table_name, rows):
         wb = Workbook()
         ws = wb.active
         ws.title = TABLE_LABELS.get(table_name, table_name)
-        ws.append(headers)
+        ws.append([preferred.get(c, c) for c in whitelist])
+        head_font = Font(bold=True, color="FFFFFF")
+        head_fill = PatternFill("solid", fgColor="2D6A9F")
+        for index, column in enumerate(whitelist, 1):
+            head = ws.cell(row=1, column=index)
+            head.font = head_font
+            head.fill = head_fill
+            head.alignment = Alignment(horizontal="center", vertical="center")
+            ws.column_dimensions[get_column_letter(index)].width = 18
+            note = notes.get(column, "")
+            if note:
+                flag = "【必填】" if column in required else "【可选】"
+                comment = Comment(f"{flag}{note}\n（此说明为批注，填写时可忽略）", "培小e")
+                comment.width = 280
+                comment.height = 100
+                head.comment = comment
         for row in rows:
             ws.append([cell(row.get(c)) for c in whitelist])
-        for idx in range(1, len(whitelist) + 1):
-            ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = 16
         ws.freeze_panes = "A2"
         wb.save(filepath)
     except Exception as exc:

@@ -28,6 +28,25 @@ except ImportError:  # pragma: no cover
 HEAD_FONT = None
 HEAD_FILL = None
 
+# 本地 ECharts（离线可用）；不存在时回退 CDN
+ECHARTS_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "echarts.min.js")
+ECHARTS_CDN = "https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"
+
+
+def echarts_script_tag(out_dir):
+    """生成图表库的 script 标签，优先引用同目录的本地副本"""
+    try:
+        if os.path.exists(ECHARTS_LOCAL):
+            os.makedirs(out_dir, exist_ok=True)
+            target = os.path.join(out_dir, "echarts.min.js")
+            if not os.path.exists(target) or os.path.getsize(target) != os.path.getsize(ECHARTS_LOCAL):
+                import shutil
+                shutil.copy2(ECHARTS_LOCAL, target)
+            return '<script src="./echarts.min.js"></script>'
+    except OSError:
+        pass
+    return f'<script src="{ECHARTS_CDN}"></script>'
+
 
 def _ensure_styles():
     global HEAD_FONT, HEAD_FILL
@@ -96,7 +115,7 @@ def write_advice_excel(path, data):
 ADVICE_TEMPLATE = """<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <title>培小e·应训未训建议名单 __YEAR__</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+__ECHARTS__
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden}
@@ -260,6 +279,7 @@ def write_advice_html(path, data):
         return str(name or "").replace("公司", "")
 
     output = (ADVICE_TEMPLATE
+              .replace("__ECHARTS__", echarts_script_tag(os.path.dirname(path)))
               .replace("__YEAR__", esc(data.get("year")))
               .replace("__PLANS__", esc(summary.get("plans")))
               .replace("__TOTAL__", esc(summary.get("total")))
@@ -280,7 +300,7 @@ def write_advice_html(path, data):
 DASH_TEMPLATE = """<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <title>培小e·培训数据统计大屏 __YEAR__</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+__ECHARTS__
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden}
@@ -417,6 +437,7 @@ def write_dashboard_html(path, data):
     plans = data.get("planCounts") or []
     sessions = [{"n": name, "p": count} for name, count in plans]
     output = (DASH_TEMPLATE
+              .replace("__ECHARTS__", echarts_script_tag(os.path.dirname(path)))
               .replace("__YEAR__", esc(data.get("year")))
               .replace("__GENERATED__", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
               .replace("__PLAN_TIP__", esc(f"{len(plans)} 个期次"))
