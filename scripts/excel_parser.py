@@ -235,6 +235,43 @@ BOOK_TEMPLATES = {
     "pxe_training_plan": ["pxe_training_plan", "pxe_quota_alloc"],
 }
 
+# 模板中不展示的字段（数据模型保留，只是模板里不列，避免干扰填报）
+TEMPLATE_HIDDEN_FIELDS = {"remark"}
+
+# =========================================
+# 模板表头固定用词（保证清晰，避免取到映射表里的简称）
+# =========================================
+PREFERRED_HEADERS = {
+    "pxe_leader_info": {
+        "seqNo": "序号", "regionName": "地区", "unitName": "单位", "empName": "人员姓名",
+        "empId": "员工ID", "idCard": "身份证号", "gender": "性别", "age": "年龄",
+        "assistDate": "协理时间", "hireDate": "入职时间", "bRole": "B角",
+        "cadreLevel": "干部级别", "staffGrade": "职员职级", "isPartySec": "是否为党支部书记",
+        "trainedRecords": "培训记录", "totalHours": "累计培训学时",
+        "isProdHead": "是否为生产分管负责人",
+    },
+    "pxe_training_plan": {
+        "batchId": "批次标识", "planYear": "计划年度", "seqNo": "序号", "className": "班次名称",
+        "sessionNo": "期次", "trainPeriod": "参培时间", "startDate": "开始日期", "endDate": "结束日期",
+        "trainPlace": "培训地点", "planCount": "计划人数", "targetGroup": "参培对象",
+        "ruleDesc": "调训规则", "ruleKey": "规则标识",
+    },
+    "pxe_quota_alloc": {
+        "planYear": "计划年度", "className": "班次名称", "sessionNo": "期次", "planId": "计划ID",
+        "unitName": "单位", "quotaCount": "名额",
+    },
+    "pxe_train_record": {
+        "planId": "计划ID", "empId": "员工ID", "empName": "人员姓名", "planYear": "培训年度",
+        "className": "班次名称", "classType": "班次类别", "sessionNo": "期次", "trainPeriod": "参培时间",
+        "startDate": "开始日期", "endDate": "结束日期", "hours": "学时", "unitAtTime": "参培时所在单位",
+        "dataSource": "数据来源",
+    },
+    "pxe_training_rule": {
+        "ruleType": "规则类型", "ruleCode": "规则编码", "ruleName": "规则名称",
+        "ruleContent": "规则内容", "priority": "优先级", "enabled": "是否启用",
+    },
+}
+
 # =========================================
 # 字段说明（模板批注与「字段说明」工作表使用）
 # =========================================
@@ -858,16 +895,12 @@ def write_template(filepath, table_name):
 
 def _fill_sheet(ws, table_name):
     """往一个工作表里写入表头、批注与样例行"""
-    whitelist = WHITELIST_FIELDS.get(table_name, [])
-    mapping = FIELD_MAPS.get(table_name, {})
-    en_to_cn = {}
-    for cn, en in mapping.items():
-        if en not in en_to_cn or len(cn) < len(en_to_cn[en]):
-            en_to_cn[en] = cn
+    whitelist = [c for c in WHITELIST_FIELDS.get(table_name, []) if c not in TEMPLATE_HIDDEN_FIELDS]
+    preferred = PREFERRED_HEADERS.get(table_name, {})
     required = set(REQUIRED_FIELDS.get(table_name, ()))
     notes = FIELD_NOTES.get(table_name, {})
 
-    ws.append([en_to_cn.get(c, c) for c in whitelist])
+    ws.append([preferred.get(c, c) for c in whitelist])
     head_font = Font(bold=True, color="FFFFFF")
     head_fill = PatternFill("solid", fgColor="2D6A9F")
     for index, column in enumerate(whitelist, 1):
