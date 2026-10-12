@@ -1,15 +1,30 @@
 // =====================================================
-// 培小e 配置文件
-// 对接培训数据接口（见 references/api_contract.md）
+// 培小e 配置文件 —— 内网部署时只需要改这里
+//
+// 技能包与后端不在同一台机器，二者只有 HTTP 接口这一条通道：
+//   技能本身不连数据库、不执行 SQL、不读写后端文件。
+//
+// 换环境只改下面两项：
+//   api.baseUrl   → 指向后端服务的地址（形如 http://IP:7529/api/HuangDao/training）
+//   api.apiSecret → 与后端 application.yml 中 app.api-secret 的值完全一致
+// 其余配置项一般无需改动。
+//
+// 校验是否连通：
+//   node index.js 查询 rule --每页 1
+//   返回数据即为连通；报 "fetch failed" 说明后端地址不通或服务未启动。
 // =====================================================
 const CFG = {
-  // ---- 培训数据接口地址 ----
+  // ---- 培训数据接口地址（内网部署改这里）----
   api: {
-    // 本地后端
+    // 当前后端地址
     baseUrl: 'http://127.0.0.1:7529/api/HuangDao/training',
-    // 生产后端（部署后替换）：
+    // 其它环境示例（按需替换上面的值）：
     // baseUrl: 'http://10.141.186.82:27529/api/HuangDao/training',
+    // baseUrl: 'http://127.0.0.1:27599/api/HuangDao/training',
+    // 必须与后端 app.api-secret 一致；请求时放在 Header Authorization，不加 Bearer
     apiSecret: 'Tcm@950t',
+    // 单次请求超时（毫秒），默认 30000
+    timeoutMs: 30000,
   },
 
   // ---- 管理员凭据（导入/导出/看板等管理操作用）----
