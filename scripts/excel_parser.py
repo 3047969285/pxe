@@ -244,7 +244,8 @@ TEMPLATE_HIDDEN_FIELDS = {
     "pxe_quota_alloc": {"remark", "planId"},
     # 培训记录：不填计划编号与参培时间，直接给开始/结束日期
     "pxe_train_record": {"remark", "planId", "trainPeriod"},
-    "pxe_training_rule": {"remark"},
+    # 通用规则：不填优先级，导入时按行序自动编排执行次序
+    "pxe_training_rule": {"remark", "priority"},
 }
 
 # =========================================
