@@ -96,7 +96,7 @@ def write_advice_excel(path, data):
     for plan in data.get("plans", []):
         for row in plan.get("excluded", []):
             ws2.append([plan.get("className"), plan.get("sessionNo"), row.get("unitName"),
-                        row.get("empName"), row.get("empId"), row.get("rule"), row.get("reason")])
+                        row.get("empName"), row.get("empId"), (row.get("ruleName") or row.get("rule")), row.get("reason")])
 
     ws3 = wb.create_sheet("按期次汇总")
     style_header(ws3, ["班次名称", "期次", "计划人数", "建议人数", "剔除人次", "名额覆盖单位数"])
@@ -173,7 +173,7 @@ td.nm{color:#eaf6ff;font-weight:600}
 <div class="bg"></div>
 <div class="wrap">
 <div class="hd">
- <div class="logo"><div class="mark">PE</div><span>培小e<br>智能培训管理</span></div>
+ <div class="logo"><div class="mark">培</div><span>培小e<br>智能培训管理</span></div>
  <h1>培小e · 应训未训建议名单</h1>
  <div class="deco"></div>
  <div class="sub">年度 __YEAR__ · 基于 __PLANS__ 个班次期次 · 生成于 __GENERATED__</div>
@@ -185,7 +185,7 @@ td.nm{color:#eaf6ff;font-weight:600}
   <div class="panel"><div class="pt"><i></i><b>剔除与顺延原因分布</b><em>规则审计</em></div><div class="pc"><div class="chart" id="cReason"></div></div></div>
  </div>
  <div class="col">
-  <div class="panel" style="flex:1.25"><div class="pt"><i></i><b>各期次建议人数 vs 计划人数</b><em>__PLANS__ 个期次</em></div><div class="pc"><div class="chart" id="cSession"></div></div></div>
+  <div class="panel" style="flex:1.25"><div class="pt"><i></i><b>各期次建议人数与计划人数对比</b><em>__PLANS__ 个期次</em></div><div class="pc"><div class="chart" id="cSession"></div></div></div>
   <div class="panel" style="flex:1.35"><div class="pt"><i></i><b>各单位建议人次分布</b><em>山东17地市</em></div><div class="pc"><div class="chart" id="cUnit"></div></div></div>
  </div>
  <div class="col">
@@ -353,10 +353,10 @@ td.nm{color:#eaf6ff;font-weight:600}
 <div class="bg"></div>
 <div class="wrap">
 <div class="hd">
- <div class="logo"><div class="mark">PE</div><span>培小e<br>智能培训管理</span></div>
+ <div class="logo"><div class="mark">培</div><span>培小e<br>智能培训管理</span></div>
  <h1>培小e · 培训数据统计大屏</h1>
  <div class="deco"></div>
- <div class="sub">年度 __YEAR__ · 数据来源 zuzhibu_db · 生成于 __GENERATED__</div>
+ <div class="sub">年度 __YEAR__ · 数据来源 培训数据库 · 生成于 __GENERATED__</div>
  <div class="clock"><b id="clk">--:--:--</b><br><span id="dt">--</span></div>
 </div>
 <div class="kpis" id="kpis"></div>
@@ -372,7 +372,7 @@ td.nm{color:#eaf6ff;font-weight:600}
   <div class="panel"><div class="pt"><i></i><b>各单位培训记录数</b><em>已入库记录</em></div><div class="pc"><div class="chart" id="cRec"></div></div></div>
  </div>
 </div>
-<div class="ft">数据来源：zuzhibu_db 培训模块（人员 / 计划 / 名额 / 记录 / 规则） · 本页由培小e自动生成</div>
+<div class="ft">数据来源：培训数据库（人员 / 计划 / 名额 / 记录 / 规则） · 本页由培小e自动生成</div>
 </div>
 <script>
 const KPIS=__KPIS__;

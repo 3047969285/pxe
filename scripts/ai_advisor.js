@@ -315,14 +315,14 @@ async function generateAdvice({ year = '2027', limitPerUnit, outDir, account, cr
       const cap = limitPerUnit ? Math.min(quota || limitPerUnit, limitPerUnit) : quota;
       if (used >= cap) {
         excluded.push({ empId: person.empId, empName: person.empName, unitName: person.unitName,
-          rule: 'QUOTA', reason: `本单位名额已满（${cap}）` });
+          rule: 'QUOTA', ruleName: '名额限制', reason: `本单位名额已满（${cap}）` });
         continue;
       }
       if (hardRules.some(item => item.code === 'HARD_AB_ROLE')) {
         const verdict = ruleAbRoleConflict(person, plan, context);
         if (verdict && verdict.excluded) {
           excluded.push({ empId: person.empId, empName: person.empName, unitName: person.unitName,
-            rule: 'HARD_AB_ROLE', reason: verdict.reason });
+            rule: 'HARD_AB_ROLE', ruleName: 'AB角不得同出', reason: verdict.reason });
           continue;
         }
       }
