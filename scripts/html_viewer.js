@@ -79,8 +79,8 @@ async function buildDashboard({ year = '2027', target, account, credential } = {
     levels: topEntries(levelCounter),
   };
 
-  const targetPath = target || path.join(CFG.outDir || os.tmpdir(), `培小e看板_${safeYear}.html`);
-  const jsonPath = path.join(os.tmpdir(), `peixiaoe_dashboard_${Date.now()}.json`);
+  const targetPath = target || path.join(CFG.outDir, `培小e看板_${safeYear}.html`);
+  const jsonPath = path.join(CFG.processDir || os.tmpdir(), `peixiaoe_dashboard_${Date.now()}.json`);
   try {
     fs.writeFileSync(jsonPath, JSON.stringify(payload), 'utf8');
     const env = Object.assign({}, process.env, { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' });

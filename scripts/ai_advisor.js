@@ -381,10 +381,10 @@ async function generateAdvice({ year = '2027', limitPerUnit, outDir, account, cr
   };
 
   // 输出 Excel + HTML（占位符模板替换）
-  const targetDir = outDir || CFG.outDir || os.tmpdir();
+  const targetDir = outDir || CFG.outDir;
   try {
     fs.mkdirSync(targetDir, { recursive: true });
-    const jsonPath = path.join(os.tmpdir(), `peixiaoe_advice_${Date.now()}.json`);
+    const jsonPath = path.join(CFG.processDir || os.tmpdir(), `peixiaoe_advice_${Date.now()}.json`);
     fs.writeFileSync(jsonPath, JSON.stringify(result), 'utf8');
     const env = Object.assign({}, process.env, { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' });
     const output = execFileSync(PYTHON, [WRITER, '--advice', jsonPath, targetDir], {

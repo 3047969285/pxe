@@ -870,6 +870,10 @@ def write_excel(filepath, table_name, rows):
         return "" if value is None else value
 
     try:
+        # 结果目录不存在时自动创建
+        target_dir = os.path.dirname(os.path.abspath(filepath))
+        if target_dir:
+            os.makedirs(target_dir, exist_ok=True)
         wb = Workbook()
         ws = wb.active
         ws.title = TABLE_LABELS.get(table_name, table_name)
@@ -910,6 +914,10 @@ def write_template(filepath, table_name):
 
     tables = BOOK_TEMPLATES.get(table_name, [table_name])
     try:
+        # 结果目录不存在时自动创建
+        target_dir = os.path.dirname(os.path.abspath(filepath))
+        if target_dir:
+            os.makedirs(target_dir, exist_ok=True)
         wb = Workbook()
         wb.remove(wb.active)
         for name in tables:

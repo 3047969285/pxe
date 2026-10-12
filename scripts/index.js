@@ -171,8 +171,8 @@ async function cmdExport(tableName, options) {
     ui.fail(all.message || all.error || '接口调用失败');
     return 1;
   }
-  const target = options['输出'] || path.join(CFG.outDir || '.', `${table}.xlsx`);
-  const jsonPath = path.join(os.tmpdir(), `peixiaoe_export_${Date.now()}.json`);
+  const target = options['输出'] || path.join(CFG.outDir, `${ui.labelOfTable(table)}.xlsx`);
+  const jsonPath = path.join(CFG.processDir || os.tmpdir(), `peixiaoe_export_${Date.now()}.json`);
   fs.writeFileSync(jsonPath, JSON.stringify(all.rows), 'utf8');
   let result;
   try {
@@ -193,7 +193,7 @@ async function cmdExport(tableName, options) {
 async function cmdTemplate(tableName, options) {
   const { runParser } = require('./import_excel');
   const table = tableOf(tableName);
-  const target = options['输出'] || path.join(CFG.outDir || '.', `${table}-模板.xlsx`);
+  const target = options['输出'] || path.join(CFG.outDir, `${ui.labelOfTable(table)}导入模板.xlsx`);
   const result = runParser(['--template', target, table]);
   if (!result.ok) {
     ui.fail(`生成模板失败：${result.error}`);
@@ -279,7 +279,7 @@ async function cmdDashboard(options) {
   const viewer = require('./html_viewer');
   const result = await viewer.buildDashboard({
     year: options['年度'] || '2027',
-    target: options['输出'] || path.join(CFG.outDir || '.', `培小e看板_${options['年度'] || '2027'}.html`),
+    target: options['输出'] || path.join(CFG.outDir, `培小e看板_${options['年度'] || '2027'}.html`),
     account: options.account,
     credential: options.credential,
   });
