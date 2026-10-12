@@ -236,7 +236,16 @@ BOOK_TEMPLATES = {
 }
 
 # 模板中不展示的字段（数据模型保留，只是模板里不列，避免干扰填报）
-TEMPLATE_HIDDEN_FIELDS = {"remark"}
+TEMPLATE_HIDDEN_FIELDS = {
+    "pxe_leader_info": {"remark"},
+    # 培训计划：不填参培时间，直接给开始/结束日期
+    "pxe_training_plan": {"remark", "trainPeriod"},
+    # 名额分配：不填计划编号，按年度+班次+期次自动匹配
+    "pxe_quota_alloc": {"remark", "planId"},
+    # 培训记录：不填计划编号与参培时间，直接给开始/结束日期
+    "pxe_train_record": {"remark", "planId", "trainPeriod"},
+    "pxe_training_rule": {"remark"},
+}
 
 # =========================================
 # 模板表头固定用词（保证清晰，避免取到映射表里的简称）
@@ -382,62 +391,62 @@ SAMPLE_ROWS = {
          "remark": "距退休不足5年，不安排进修班"},
     ],
     "pxe_training_plan": [
-        # 情况一：填参培时间原文，起止日期与年度由系统自动拆解
+        # 情况一：常规班次，只给开始/结束日期
         {"batchId": "", "planYear": "2027", "seqNo": 1, "className": "四级领导人员进修班",
-         "sessionNo": "第一期", "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "",
+         "sessionNo": "第一期", "startDate": "2027-03-16", "endDate": "2027-03-30",
          "trainPlace": "临沂校区", "planCount": 70, "targetGroup": "四级领导人员（正科级）",
-         "ruleDesc": "近3年未参培优先", "ruleKey": "jxb_normal", "remark": ""},
-        # 情况二：不填参培时间，直接给开始/结束日期
+         "ruleDesc": "近3年未参培优先", "ruleKey": "jxb_normal"},
+        # 情况二：期次填数字
         {"batchId": "", "planYear": "2027", "seqNo": 2, "className": "新提任四级正职领导人员任职进修班",
-         "sessionNo": "1", "trainPeriod": "", "startDate": "2027-04-10", "endDate": "2027-04-24",
+         "sessionNo": "1", "startDate": "2027-04-10", "endDate": "2027-04-24",
          "trainPlace": "井冈山干部学院", "planCount": 50, "targetGroup": "2026年新提任四级正职领导人员",
-         "ruleDesc": "2026年新提任正职全覆盖", "ruleKey": "xinren_zheng", "remark": ""},
+         "ruleDesc": "2026年新提任正职全覆盖", "ruleKey": "xinren_zheng"},
         # 情况三：批次标识有值（同一批多条计划共用）
         {"batchId": "PC202701011200001001", "planYear": "2027", "seqNo": 3, "className": "县公司领导班子进修班",
-         "sessionNo": "第二期", "trainPeriod": "2027年5月8日至5月22日", "startDate": "", "endDate": "",
+         "sessionNo": "第二期", "startDate": "2027-05-08", "endDate": "2027-05-22",
          "trainPlace": "临沂校区", "planCount": 70, "targetGroup": "县公司领导班子成员",
-         "ruleDesc": "学时缺口优先", "ruleKey": "xgsb", "remark": ""},
+         "ruleDesc": "学时缺口优先", "ruleKey": "xgsb"},
         # 情况四：党支部书记专场（第五期）
         {"batchId": "", "planYear": "2027", "seqNo": 4, "className": "四级领导人员进修班",
-         "sessionNo": "第五期", "trainPeriod": "2027年11月10日至11月24日", "startDate": "", "endDate": "",
+         "sessionNo": "第五期", "startDate": "2027-11-10", "endDate": "2027-11-24",
          "trainPlace": "临沂校区", "planCount": 80, "targetGroup": "党支部书记",
-         "ruleDesc": "党支部书记专场", "ruleKey": "jxb_secretary", "remark": "书记专场"},
+         "ruleDesc": "党支部书记专场", "ruleKey": "jxb_secretary"},
     ],
     "pxe_quota_alloc": [
-        # 情况一：只填年度+班次+期次定位计划，计划ID留空
+        # 情况一：年度+班次+期次定位计划
         {"planYear": "2027", "className": "四级领导人员进修班", "sessionNo": "第一期",
-         "planId": "", "unitName": "济南公司", "quotaCount": 5, "remark": ""},
+         "unitName": "济南公司", "quotaCount": 5},
         # 情况二：同一班次期次、不同单位
         {"planYear": "2027", "className": "四级领导人员进修班", "sessionNo": "第一期",
-         "planId": "", "unitName": "青岛公司", "quotaCount": 6, "remark": ""},
+         "unitName": "青岛公司", "quotaCount": 6},
         # 情况三：期次直接填数字
         {"planYear": "2027", "className": "县公司领导班子进修班", "sessionNo": "2",
-         "planId": "", "unitName": "烟台公司", "quotaCount": 4, "remark": ""},
+         "unitName": "烟台公司", "quotaCount": 4},
         # 情况四：名额为 0（该期次不分配名额）
         {"planYear": "2027", "className": "新提任四级副职领导人员任职进修班", "sessionNo": "第一期",
-         "planId": "", "unitName": "莱芜公司", "quotaCount": 0, "remark": "本期不分配"},
+         "unitName": "莱芜公司", "quotaCount": 0},
     ],
     "pxe_train_record": [
-        # 情况一：填参培时间原文，起止日期自动拆解
-        {"planId": "", "empId": "00010001", "empName": "张三", "planYear": "2027",
+        # 情况一：常规记录，只给开始/结束日期
+        {"empId": "00010001", "empName": "张三", "planYear": "2027",
          "className": "四级领导人员进修班", "classType": "进修班", "sessionNo": "第一期",
-         "trainPeriod": "2027年3月16日至3月30日", "startDate": "", "endDate": "", "hours": 16,
-         "unitAtTime": "济南公司", "dataSource": "国网学堂", "remark": ""},
-        # 情况二：直接给起止日期，不填参培时间
-        {"planId": "", "empId": "00010002", "empName": "王五", "planYear": "2027",
-         "className": "县公司领导班子进修班", "classType": "县班子班", "sessionNo": "第二期",
-         "trainPeriod": "", "startDate": "2027-05-08", "endDate": "2027-05-22", "hours": 14,
-         "unitAtTime": "青岛公司", "dataSource": "送培", "remark": ""},
+         "startDate": "2027-03-16", "endDate": "2027-03-30", "hours": 16,
+         "unitAtTime": "济南公司", "dataSource": "国网学堂"},
+        # 情况二：期次填数字、数据来源为送培
+        {"empId": "00010002", "empName": "王五", "planYear": "2027",
+         "className": "县公司领导班子进修班", "classType": "县班子班", "sessionNo": "2",
+         "startDate": "2027-05-08", "endDate": "2027-05-22", "hours": 14,
+         "unitAtTime": "青岛公司", "dataSource": "送培"},
         # 情况三：学时留空（源数据只有年度合计）
-        {"planId": "", "empId": "00010003", "empName": "赵六", "planYear": "2027",
+        {"empId": "00010003", "empName": "赵六", "planYear": "2027",
          "className": "四级领导人员进修班", "classType": "进修班", "sessionNo": "第五期",
-         "trainPeriod": "2027年11月10日至11月24日", "startDate": "", "endDate": "", "hours": "",
-         "unitAtTime": "烟台公司", "dataSource": "系统匹配确认", "remark": "学时待补"},
-        # 情况四：班次类别留空，备注说明
-        {"planId": "", "empId": "00010004", "empName": "周八", "planYear": "2027",
+         "startDate": "2027-11-10", "endDate": "2027-11-24", "hours": "",
+         "unitAtTime": "烟台公司", "dataSource": "系统匹配确认"},
+        # 情况四：班次类别留空
+        {"empId": "00010004", "empName": "周八", "planYear": "2027",
          "className": "新提任四级副职领导人员任职进修班", "classType": "", "sessionNo": "第一期",
-         "trainPeriod": "2027年6月5日至6月19日", "startDate": "", "endDate": "", "hours": 12,
-         "unitAtTime": "潍坊公司", "dataSource": "自办班", "remark": ""},
+         "startDate": "2027-06-05", "endDate": "2027-06-19", "hours": 12,
+         "unitAtTime": "潍坊公司", "dataSource": "自办班"},
     ],
     "pxe_training_rule": [
         # 情况一：硬规则、启用、优先级1、自带编码
@@ -895,7 +904,8 @@ def write_template(filepath, table_name):
 
 def _fill_sheet(ws, table_name):
     """往一个工作表里写入表头、批注与样例行"""
-    whitelist = [c for c in WHITELIST_FIELDS.get(table_name, []) if c not in TEMPLATE_HIDDEN_FIELDS]
+    hidden = TEMPLATE_HIDDEN_FIELDS.get(table_name, set())
+    whitelist = [c for c in WHITELIST_FIELDS.get(table_name, []) if c not in hidden]
     preferred = PREFERRED_HEADERS.get(table_name, {})
     required = set(REQUIRED_FIELDS.get(table_name, ()))
     notes = FIELD_NOTES.get(table_name, {})
