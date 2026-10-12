@@ -110,7 +110,7 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     parsed.warnings.slice(0, 3).forEach(w => console.log(`  提示: ${w}`));
   }
 
-  // 名额分配需要按班次+期次回填计划编号
+  // 名额分配：用户只填 年度+班次+期次，这里回填计划编号
   if (targetTable === 'pxe_quota_alloc') {
     const index = await loadPlanIndex(account, credential);
     if (!index.ok) {
@@ -120,9 +120,13 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     const resolved = [];
     const missing = new Set();
     rows.forEach(row => {
-      const planId = findPlanId(index.plans, row.className, row.sessionNo);
+      // 已显式填了计划编号的，直接采用
+      let planId = row.planId;
       if (!planId) {
-        missing.add(`${row.className}-${row.sessionNo}`);
+        planId = findPlanId(index.plans, row.className, row.sessionNo);
+      }
+      if (!planId) {
+        missing.add(`${row.planYear || ''}${row.className || ''}-${row.sessionNo || ''}`);
         return;
       }
       resolved.push({

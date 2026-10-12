@@ -121,6 +121,14 @@ FIELD_MAPS = {
         "备注": "remark",
     },
     "pxe_quota_alloc": {
+        "计划年度": "planYear",
+        "年度": "planYear",
+        "年份": "planYear",
+        "班次名称": "className",
+        "培训班名称": "className",
+        "班次": "className",
+        "期次": "sessionNo",
+        "期数": "sessionNo",
         "计划ID": "planId",
         "培训计划ID": "planId",
         "计划编号": "planId",
@@ -192,7 +200,7 @@ WHITELIST_FIELDS = {
         "batchId", "planYear", "seqNo", "className", "sessionNo", "trainPeriod", "startDate",
         "endDate", "trainPlace", "planCount", "targetGroup", "ruleDesc", "ruleKey", "remark",
     ],
-    "pxe_quota_alloc": ["planId", "unitName", "quotaCount", "remark"],
+    "pxe_quota_alloc": ["planYear", "className", "sessionNo", "planId", "unitName", "quotaCount", "remark"],
     "pxe_train_record": [
         "planId", "empId", "empName", "planYear", "className", "classType", "sessionNo",
         "trainPeriod", "startDate", "endDate", "hours", "unitAtTime", "dataSource", "remark",
@@ -204,7 +212,7 @@ WHITELIST_FIELDS = {
 REQUIRED_FIELDS = {
     "pxe_leader_info": ("regionName", "unitName", "empName", "empId"),
     "pxe_training_plan": ("planYear", "className", "sessionNo"),
-    "pxe_quota_alloc": ("planId", "unitName"),
+    "pxe_quota_alloc": ("planYear", "className", "sessionNo", "unitName", "quotaCount"),
     "pxe_train_record": ("empId", "empName", "planYear", "className", "sessionNo"),
     "pxe_training_rule": ("ruleType", "ruleCode", "ruleName"),
 }
@@ -268,7 +276,10 @@ FIELD_NOTES = {
         "remark": "备注，可留空",
     },
     "pxe_quota_alloc": {
-        "planId": "培训计划编号，一般留空；宽表导入时系统按班次与期次自动匹配，手工填需填计划的 UUID",
+        "planYear": "计划年度，4 位年份，如 2027。与班次名称、期次一起定位到具体培训计划，无需填写计划编号",
+        "className": "班次名称，需与培训计划工作表里的名称一致，如 四级领导人员进修班",
+        "sessionNo": "期次，填 第一期 / 第二期，或直接填 1 / 2",
+        "planId": "培训计划编号。留空即可，系统会按上面的年度加班次加期次自动匹配；只有需要精确指定某条计划时才手工填写",
         "unitName": "单位简称，如 济南公司",
         "quotaCount": "该单位在该班次期次的名额数，填整数",
         "remark": "备注，可留空",
@@ -318,6 +329,7 @@ SAMPLE_ROWS = {
         "ruleDesc": "近3年未参培优先", "ruleKey": "jxb_normal", "remark": "",
     },
     "pxe_quota_alloc": {
+        "planYear": "2027", "className": "四级领导人员进修班", "sessionNo": "第一期",
         "planId": "", "unitName": "济南公司", "quotaCount": 5, "remark": "",
     },
     "pxe_train_record": {
