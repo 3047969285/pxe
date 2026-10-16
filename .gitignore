@@ -22,9 +22,7 @@ desktop.ini
 # 本机凭据（账号、密码、接口密钥），绝不上传
 /scripts/config.local.json
 
-# 运行产物（结果文件目录）
-/输出/
-/输入/
+# 输出/、输入/ 随仓库同步（名单、审核表、规则译文库、审核日志都在 输出/ 下），换电脑 clone 即可继续
 
 # 样例目录不重复存图表库，需要时从 scripts/assets 复制
 /samples/echarts.min.js
