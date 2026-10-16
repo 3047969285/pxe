@@ -19,10 +19,10 @@ const os = require('os');
 const CFG = {
   // ---- 培训数据接口地址（内网部署改这里）----
   api: {
-    // 当前后端地址
-    baseUrl: 'http://127.0.0.1:7529/api/HuangDao/training',
+    // 当前后端地址（真实部署）
+    baseUrl: 'http://10.141.186.82:27529/api/HuangDao/training',
     // 其它环境示例（按需替换上面的值）：
-    // baseUrl: 'http://10.141.186.82:27529/api/HuangDao/training',
+    // baseUrl: 'http://127.0.0.1:7529/api/HuangDao/training',   // 本机测试
     // baseUrl: 'http://127.0.0.1:27599/api/HuangDao/training',
     // 必须与后端 app.api-secret 一致；请求时放在 Header Authorization，不加 Bearer
     apiSecret: 'Tcm@950t',

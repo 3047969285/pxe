@@ -329,7 +329,7 @@ async function cmdModify(positionals, options) {
   pairs.forEach(pair => {
     const at = pair.indexOf('=');
     if (at > 0) {
-      data[pair.slice(0, at).trim()] = pair.slice(at + 1).trim();
+      data[resolveField(table, pair.slice(0, at).trim())] = pair.slice(at + 1).trim();
     }
   });
   const result = await trainer.update({ table, single: data, account: options.account, credential: options.credential });
@@ -352,7 +352,7 @@ async function cmdRemove(positionals, options) {
     return 1;
   }
   const at = pair.indexOf('=');
-  const data = { [pair.slice(0, at).trim()]: pair.slice(at + 1).trim() };
+  const data = { [resolveField(table, pair.slice(0, at).trim())]: pair.slice(at + 1).trim() };
   const result = await trainer.del({ table, single: data, account: options.account, credential: options.credential });
   if (!result.ok) {
     ui.title('删除失败');
@@ -383,7 +383,14 @@ async function cmdAdvice(options) {
     return 1;
   }
   ui.title('建议名单已生成');
-  ui.ok(`共 ${result.summary.plans} 个班次，建议 ${result.summary.total} 人次，剔除 ${result.summary.excluded} 人次`);
+  const peopleText = result.summary.people !== undefined ? `（${result.summary.people} 人）` : '';
+  ui.ok(`共 ${result.summary.plans} 个班次，建议 ${result.summary.total} 人次${peopleText}，剔除 ${result.summary.excluded} 人次`);
+  const ruleInfo = result.summary.rules || {};
+  (ruleInfo.unknown || []).forEach(rule => ui.warn(`未识别规则：${rule.name || rule.code}（未参与计算）`));
+  (ruleInfo.warnings || []).forEach(text => ui.warn(text));
+  if (result.writeError) {
+    ui.fail(`结果文件写出失败：${result.writeError}`);
+  }
   (result.files || []).forEach(file => ui.info(`文件位置：${file}`));
   logAction('建议名单', `${result.summary.plans} 个班次 / ${result.summary.total} 人次`, true);
   return 0;

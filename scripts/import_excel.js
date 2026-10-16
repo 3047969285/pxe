@@ -61,6 +61,27 @@ function matchClassName(shortName, planName) {
   return rules.some(([short, full]) => short.test(shortName) && full.test(planName));
 }
 
+// 期次归一化：1 / 第1期 / 第一期 / 一期 → 「第1期」风格，避免数字与中文写法对不上
+const CN_DIGITS = { 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+function normalizeSessionNo(value) {
+  const text = String(value == null ? '' : value).trim();
+  if (!text) {
+    return text;
+  }
+  const match = text.match(/第?\s*([一二两三四五六七八九十\d]+)\s*期?/);
+  if (!match) {
+    return text;
+  }
+  const token = match[1];
+  if (/^\d+$/.test(token)) {
+    return `第${parseInt(token, 10)}期`;
+  }
+  if (token in CN_DIGITS) {
+    return `第${token}期`;
+  }
+  return text;
+}
+
 // 拉取计划表并建立 班次+期次 → planId 索引
 async function loadPlanIndex(account, credential) {
   const result = await trainer.queryAll('pxe_training_plan',
@@ -76,13 +97,17 @@ async function loadPlanIndex(account, credential) {
   return { ok: true, plans };
 }
 
-// 按班次与期次查计划编号
+// 按班次与期次查计划编号（期次两端均做归一化，数字/中文写法可互配）
 function findPlanId(plans, className, sessionNo) {
-  const exact = plans.find(p => p.className === className && p.sessionNo === sessionNo);
+  const session = normalizeSessionNo(sessionNo);
+  if (!className || !session) {
+    return null;
+  }
+  const exact = plans.find(p => p.className === className && normalizeSessionNo(p.sessionNo) === session);
   if (exact) {
     return exact.planId;
   }
-  const fuzzy = plans.find(p => matchClassName(className, p.className) && p.sessionNo === sessionNo);
+  const fuzzy = plans.find(p => matchClassName(className, p.className) && normalizeSessionNo(p.sessionNo) === session);
   return fuzzy ? fuzzy.planId : null;
 }
 
@@ -93,8 +118,14 @@ async function pushRows(table, rows, account, credential) {
     const batch = rows.slice(start, start + BATCH_SIZE);
     const result = await trainer.create({ table, rows: batch, account, credential });
     if (!result.ok) {
-      return { ok: false, message: `第 ${start + 1} 条起写入失败: ${result.message || result.error}` };
+      const message = result.message || result.error || '';
+      const hint = String(message).includes('培训计划不存在')
+        ? '（请在培训计划表中先建立对应的班次与期次，再导入培训记录）'
+        : '';
+      return { ok: false, message: `第 ${start + 1} 条起写入失败: ${message}${hint}` };
     }
+    // 说明：接口返回的 data 受 MySQL UPSERT 影响行数影响（插入=1、更新=2），
+    // 不作为实际条数展示，条数一律以 rows.length 为准。
     affected += Number(result.data) || 0;
   }
   return { ok: true, affected };
@@ -173,6 +204,47 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
     ui.title('导入完成');
     ui.ok(`${ui.labelOfTable(targetTable)}：新入库或更新 ${resolved.length} 条`);
     logImport(targetTable, resolved.length, true);
+    return 0;
+  }
+
+  // 培训记录：后端会校验所引用的培训计划必须已存在（40000 培训计划不存在），
+  // 这里先拉计划索引预检，无对应计划的记录跳过并提示，避免整批写入失败。
+  if (targetTable === 'pxe_train_record') {
+    const index = await loadPlanIndex(account, credential);
+    if (!index.ok) {
+      console.error(`读取培训计划失败: ${index.message}`);
+      return 1;
+    }
+    const kept = [];
+    const missing = new Set();
+    rows.forEach(row => {
+      // 显式填了计划编号的，直接放行
+      if (row.planId && findPlanId(index.plans, row.className, row.sessionNo)) {
+        kept.push(row);
+        return;
+      }
+      if (findPlanId(index.plans, row.className, row.sessionNo)) {
+        kept.push(row);
+      } else {
+        missing.add(`${row.planYear || ''}${row.className || ''}-${row.sessionNo || ''}`);
+      }
+    });
+    if (missing.size) {
+      ui.warn(`以下班次在培训计划中不存在，已跳过（请先导入对应培训计划）：${[...missing].join('、')}`);
+      if (!kept.length) {
+        ui.fail('没有任何可入库的培训记录（缺少对应培训计划，请先导入培训计划）');
+        return 1;
+      }
+    }
+    ui.info(`已核对培训计划存在性，有效 ${kept.length} 条`);
+    const pushed = await pushRows(targetTable, kept, account, credential);
+    if (!pushed.ok) {
+      ui.fail(pushed.message);
+      return 1;
+    }
+    ui.title('导入完成');
+    ui.ok(`${ui.labelOfTable(targetTable)}：新入库或更新 ${kept.length} 条`);
+    logImport(targetTable, kept.length, true);
     return 0;
   }
 

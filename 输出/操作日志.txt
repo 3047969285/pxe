@@ -2,3 +2,43 @@
 [2026-10-12 14:11:00] 成功  模板  培训记录 -> C:\Users\Administrator\Desktop\工作\工作文件\培小e\培小e\培小e\输出\2026-10-12\培训记录导入模板.xlsx
 [2026-10-12 14:11:02] 成功  建议名单  11 个班次 / 500 人次
 [2026-10-12 14:11:02] 成功  统计看板  2027 -> C:\Users\Administrator\Desktop\工作\工作文件\培小e\培小e\培小e\输出\2026-10-12\培小e看板_2027.html
+[2026-10-13 10:52:15] 成功  自检  全部通过
+[2026-10-13 11:38:02] 成功  导出  培训记录 559 条 -> C:/Users/admin/AppData/Roaming/iAssistant/iassistant/8c61d4324a574c00a4004e55d366541e/workspace/.sgcode/skills/培小e/输出/测试导出记录.xlsx
+[2026-10-13 11:42:26] 成功  模板  培训计划 -> C:/Users/admin/AppData/Roaming/iAssistant/iassistant/8c61d4324a574c00a4004e55d366541e/workspace/.sgcode/skills/培小e/输出/测试模板计划.xlsx
+[2026-10-13 11:44:15] 成功  建议名单  11 个班次 / 476 人次
+[2026-10-13 11:48:09] 成功  统计看板  2027 -> C:/Users/admin/AppData/Roaming/iAssistant/iassistant/8c61d4324a574c00a4004e55d366541e/workspace/.sgcode/skills/培小e/输出/测试看板_2027.html
+[2026-10-13 12:03:07] 成功  修改  培训记录 1 条
+[2026-10-13 12:03:08] 成功  删除  培训记录 1 条
+[2026-10-13 12:06:36] 成功  导入  培训记录 559 条
+[2026-10-13 17:52:24] 成功  自检  全部通过
+[2026-10-13 17:56:57] 成功  导出  培训记录 1118 条 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培训记录.xlsx
+[2026-10-13 17:56:58] 成功  模板  培训计划 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培训计划导入模板.xlsx
+[2026-10-13 17:56:58] 成功  模板  培训记录 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培训记录导入模板.xlsx
+[2026-10-13 17:57:13] 成功  建议名单  11 个班次 / 476 人次
+[2026-10-13 17:57:15] 成功  建议名单  11 个班次 / 476 人次
+[2026-10-13 17:58:26] 成功  统计看板  2027 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培小e看板_2027.html
+[2026-10-13 17:58:27] 成功  统计看板  2027 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培小e看板_2027.html
+[2026-10-13 17:58:27] 成功  统计看板  2027 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培小e看板_2027.html
+[2026-10-13 18:01:15] 成功  建议名单  11 个班次 / 476 人次
+[2026-10-13 18:01:17] 成功  建议名单  11 个班次 / 476 人次
+[2026-10-13 18:01:18] 成功  统计看板  2026 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培小e看板_2026.html
+[2026-10-13 18:01:19] 成功  统计看板  2027 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-13\培小e看板_2027.html
+[2026-10-13 18:11:28] 成功  建议名单  0 个班次 / 0 人次
+[2026-10-13 18:11:30] 成功  建议名单  11 个班次 / 476 人次
+[2026-10-13 18:12:33] 成功  修改  培训记录 1 条
+[2026-10-13 18:12:33] 成功  修改  培训记录 1 条
+[2026-10-13 18:23:00] 成功  删除  培训记录 1 条
+[2026-10-13 18:25:30] 成功  导入  培训记录 1 条
+[2026-10-13 18:26:16] 成功  删除  培训记录 1 条
+[2026-10-14 14:45:57] 成功  自检  全部通过
+[2026-10-14 14:50:18] 成功  导出  通用规则 0 条 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-14\通用规则.xlsx
+[2026-10-14 14:50:21] 成功  模板  通用规则 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-14\通用规则导入模板.xlsx
+[2026-10-14 15:29:10] 成功  修改  通用规则 1 条
+[2026-10-14 15:30:53] 成功  删除  通用规则 1 条
+[2026-10-16 11:53:07] 成功  导入  培训记录 1 条
+[2026-10-16 14:55:40] 成功  自检  全部通过
+[2026-10-16 15:02:59] 成功  模板  领导人员信息 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-16\领导人员信息导入模板.xlsx
+[2026-10-16 15:03:03] 成功  导出  培训计划 1 条 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-16\培训计划.xlsx
+[2026-10-16 15:03:09] 成功  建议名单  1 个班次 / 0 人次
+[2026-10-16 15:06:14] 成功  统计看板  2026 -> C:\Users\admin\AppData\Roaming\iAssistant\iassistant\8c61d4324a574c00a4004e55d366541e\workspace\.sgcode\skills\培小e\输出\2026-10-16\培小e看板_2026.html
+[2026-10-16 15:06:22] 成功  导入  通用规则 4 条

@@ -112,13 +112,19 @@ function buildBody(action, options) {
     if (options.orderBy) body.orderBy = resolveField(table, options.orderBy);
     if (options.orderDirection) body.orderDirection = options.orderDirection;
   }
-  if (action !== 'query' && action !== 'delete') {
+  if (action === 'create') {
     const auth = buildAuth(options.account, options.credential);
     if (options.rows && options.rows.length) {
       // 批量写入：数据放 rows 并逐行携带身份，移除 data 避免被判成“单条 + 批量”同时提交
       delete body.data;
       body.rows = options.rows.map(row => Object.assign({}, row, auth));
     } else if (options.single) {
+      body.data = Object.assign({}, options.single, auth);
+    }
+  } else if (action === 'update' || action === 'delete') {
+    // 修改/删除：single 是以主键定位的单条实体（update 亦用它携带待改字段）
+    const auth = buildAuth(options.account, options.credential);
+    if (options.single) {
       body.data = Object.assign({}, options.single, auth);
     }
   }
@@ -158,12 +164,16 @@ async function del(options = {}) {
 }
 
 // 快捷工具：获取某表全部数据（自动翻页）
+//   data 参数中的字段会转成 filters（EQ），因为后端不认 body.data 里的实体字段作为过滤条件
 async function queryAll(table, data = {}, account, credential) {
   const allRows = [];
   let page = 1;
   const pageSize = 500;
+  const filters = Object.keys(data).length > 0
+    ? Object.entries(data).map(([field, value]) => ({ field, operator: 'EQ', value }))
+    : undefined;
   while (true) {
-    const r = await query({ table, data, pageNum: page, pageSize, account, credential });
+    const r = await query({ table, filters, pageNum: page, pageSize, account, credential });
     if (!r.ok) return r;
     const rows = r.rows || [];
     allRows.push(...rows);
