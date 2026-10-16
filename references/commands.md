@@ -124,5 +124,5 @@ node index.js 帮助     显示全部命令
 
 ## 身份
 
-默认使用 `config.js` 里的管理员凭据；也可加 `--account <姓名> --credential <身份证后四位>`
+默认使用本机 `scripts/config.local.json`（或环境变量）里的管理员凭据；也可加 `--account <姓名> --credential <身份证后四位>`
 以普通用户身份执行（普通用户只能看本人数据与本单位计划、名额）。

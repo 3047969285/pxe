@@ -36,7 +36,7 @@ function normalizeTable(table) {
 // 构建身份字段（并入 data）
 function buildAuth(account, credential) {
   return {
-    account: account || CFG.admin.account || 'admin',
+    account: account || CFG.admin.account || '',
     credential: credential || CFG.admin.credential || '',
   };
 }
@@ -51,7 +51,7 @@ async function request(action, body) {
     return { ok: false, error: 'API_NOT_CONFIGURED' };
   }
   if (!apiSecret) {
-    console.error('[培小e] apiSecret 未配置：请到 scripts/config.js 设置 api.apiSecret');
+    console.error('[培小e] 接口密钥未配置：请在 scripts/config.local.json 填写 apiSecret，或设置环境变量 PXE_API_SECRET');
     console.error(`[培小e] 未发送请求（操作=${action}，表=${body.table || '-'}）`);
     return { ok: false, error: 'API_SECRET_NOT_CONFIGURED' };
   }

@@ -99,7 +99,7 @@ const HELP = `
 【其它】
   帮助                                                  显示本菜单
 
-说明：所有命令默认使用 config.js 里的管理员凭据；可用 --account / --credential 指定身份。
+说明：所有命令默认使用本机 scripts/config.local.json（或环境变量）里的管理员凭据；可用 --account / --credential 指定身份。
 `;
 
 // =====================================================
@@ -164,8 +164,9 @@ async function cmdSelfCheck() {
   // 1 接口配置
   ui.info(`接口地址：${CFG.api.baseUrl}`);
   ui.info(`接口密钥：${CFG.api.apiSecret ? '已配置' : '未配置'}`);
-  if (!CFG.api.baseUrl || !CFG.api.apiSecret) {
-    ui.fail('接口地址或密钥未配置，请检查 scripts/config.js');
+  ui.info(`管理员凭据：${CFG.admin.account && CFG.admin.credential ? '已配置' : '未配置'}`);
+  if (!CFG.api.baseUrl || !CFG.api.apiSecret || !CFG.admin.account || !CFG.admin.credential) {
+    ui.fail('接口密钥或管理员凭据未配置：复制 scripts/config.local.example.json 为 config.local.json 并填写（或设置环境变量）');
     allOk = false;
   } else {
     ui.ok('接口配置正常');

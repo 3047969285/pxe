@@ -4,36 +4,47 @@
 // 技能包与后端不在同一台机器，二者只有 HTTP 接口这一条通道：
 //   技能本身不连数据库、不执行 SQL、不读写后端文件。
 //
-// 换环境只改下面两项：
-//   api.baseUrl   → 指向后端服务的地址（形如 http://IP:7529/api/HuangDao/training）
-//   api.apiSecret → 与后端 application.yml 中 app.api-secret 的值完全一致
-// 其余配置项一般无需改动。
+// 账号、密码、接口密钥一律不写在本文件（本文件会上传到仓库），只从本机读取：
+//   1. 环境变量 PXE_API_SECRET / PXE_ADMIN_ACCOUNT / PXE_ADMIN_CREDENTIAL / PXE_API_BASE_URL
+//   2. scripts/config.local.json（已在 .gitignore 中，不会上传；格式见 config.local.example.json）
+// 环境变量优先。没配置时命令会提示，不会带着空凭据去请求后端。
 //
 // 校验是否连通：
 //   node index.js 查询 rule --每页 1
 //   返回数据即为连通；报 "fetch failed" 说明后端地址不通或服务未启动。
 // =====================================================
+const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+// 本机凭据文件（不进仓库）
+const LOCAL = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.local.json'), 'utf8'));
+  } catch (err) {
+    return {};
+  }
+})();
+const local = (envName, key) => String(process.env[envName] || LOCAL[key] || '').trim();
 
 const CFG = {
   // ---- 培训数据接口地址（内网部署改这里）----
   api: {
-    // 当前后端地址
-    baseUrl: 'http://127.0.0.1:7529/api/HuangDao/training',
+    // 后端地址：本机配置优先，否则用下面的默认地址
+    baseUrl: local('PXE_API_BASE_URL', 'baseUrl') || 'http://127.0.0.1:7529/api/HuangDao/training',
     // 其它环境示例（按需替换上面的值）：
     // baseUrl: 'http://10.141.186.82:27529/api/HuangDao/training',
     // baseUrl: 'http://127.0.0.1:27599/api/HuangDao/training',
-    // 必须与后端 app.api-secret 一致；请求时放在 Header Authorization，不加 Bearer
-    apiSecret: 'Tcm@950t',
+    // 接口密钥：必须与后端 app.api-secret 一致；请求时放在 Header Authorization，不加 Bearer
+    apiSecret: local('PXE_API_SECRET', 'apiSecret'),
     // 单次请求超时（毫秒），默认 30000
     timeoutMs: 30000,
   },
 
-  // ---- 管理员凭据（导入/导出/看板等管理操作用）----
+  // ---- 管理员凭据（导入/导出/看板等管理操作用），只从本机读取 ----
   admin: {
-    account: 'admin',
-    credential: 'Tcm@950t',
+    account: local('PXE_ADMIN_ACCOUNT', 'adminAccount'),
+    credential: local('PXE_ADMIN_CREDENTIAL', 'adminCredential'),
   },
 
   // ---- 五张业务表（表名枚举）----

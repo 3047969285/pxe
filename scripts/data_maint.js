@@ -302,7 +302,7 @@ async function interactiveMaintenance(preFilePath, preAuth = null) {
     if (!checkApiReady()) {
       console.log('\n⚠ 提示: 未检测到后端接口地址（config.js 的 api.baseUrl）');
       console.log('  当前为示例地址 localhost:7529，写入将会失败。');
-      console.log('  请先在 scripts/config.js 填入：baseUrl、apiSecret。\n');
+      console.log('  请先在 scripts/config.local.json 填入 baseUrl、apiSecret（或设置环境变量）。\n');
     }
 
     // 凭证输入（允许 CLI 预传入跳过交互式）

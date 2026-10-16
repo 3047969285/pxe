@@ -16,7 +16,7 @@ node index.js 查询 规则 --每页 1
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | `fetch failed` / 连接被拒 | 后端服务没起，或地址不对 | 确认后端已启动；核对 `scripts/config.js` 的 `api.baseUrl`（形如 `http://IP:7529/api/HuangDao/training`） |
-| HTTP 401 `未授权` | `apiSecret` 与后端不一致 | 把 `config.js` 的 `api.apiSecret` 改成与后端 `app.api-secret` 完全一致 |
+| HTTP 401 `未授权` | `apiSecret` 与后端不一致 | 把 `scripts/config.local.json` 的 `apiSecret` 改成与后端 `app.api-secret` 完全一致 |
 | `身份参数不完整` / `身份校验失败` | 请求里没带凭据，或凭据不对 | 用默认管理员执行；或 `--credential` 传对身份证后四位 |
 | `不支持的查询字段 xxx` | 字段名写错 | 对照 [字段对照表](field_mapping.md) 改写 |
 | `未解析到有效数据行` | 表头没被识别 | 核对表头写法；或加 `--sheet <工作表名>` 指定；或加 `--table <表>` 显式指定表 |
