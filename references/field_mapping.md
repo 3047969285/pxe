@@ -14,7 +14,7 @@
 | 身份证号 | idCard | 普通用户查询脱敏 |
 | 性别 / 年龄 | gender / age | |
 | 协理时间 | assistDate | yyyy-MM-dd |
-| 入职时间 | hireDate | 可只填年月 |
+| 入职时间 / 任职时间 | hireDate | 可只填年月；规则中的“新提任”按此年份判断 |
 | B角 | bRole | 互为 AB 角者培训时间重叠会冲突 |
 | 干部级别 / 职员职级 | cadreLevel / staffGrade | |
 | 是否为党支部书记 | isPartySec | 是 / 否 |

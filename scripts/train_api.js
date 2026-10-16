@@ -158,17 +158,55 @@ async function del(options = {}) {
 }
 
 // 快捷工具：获取某表全部数据（自动翻页）
+//   先取第 1 页拿到总数，其余页并发拉取（最多 4 路），结果按页序拼接，顺序与逐页拉取一致；
+//   后端没回总数时退回逐页拉取。
+const PAGE_SIZE = 500;
+const PAGE_CONCURRENCY = 4;
+
 async function queryAll(table, data = {}, account, credential) {
-  const allRows = [];
-  let page = 1;
-  const pageSize = 500;
+  const fetchPage = pageNum => query({ table, data, pageNum, pageSize: PAGE_SIZE, account, credential });
+  const first = await fetchPage(1);
+  if (!first.ok) return first;
+  const allRows = [...(first.rows || [])];
+  if (allRows.length < PAGE_SIZE) {
+    return { ok: true, rows: allRows, total: allRows.length };
+  }
+
+  const total = Number(first.total) || 0;
+  if (total > allRows.length) {
+    const pages = [];
+    for (let page = 2; page <= Math.ceil(total / PAGE_SIZE); page++) pages.push(page);
+    const results = new Array(pages.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < pages.length) {
+        const index = cursor++;
+        results[index] = await fetchPage(pages[index]);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PAGE_CONCURRENCY, pages.length) }, worker));
+    for (const r of results) {
+      if (!r.ok) return r;
+      allRows.push(...(r.rows || []));
+    }
+    // 拉取期间若有新增数据，补拉尾页
+    let page = pages.length + 2;
+    let last = results[results.length - 1];
+    while (last && (last.rows || []).length === PAGE_SIZE) {
+      last = await fetchPage(page++);
+      if (!last.ok) return last;
+      allRows.push(...(last.rows || []));
+    }
+    return { ok: true, rows: allRows, total: allRows.length };
+  }
+
+  let page = 2;
   while (true) {
-    const r = await query({ table, data, pageNum: page, pageSize, account, credential });
+    const r = await fetchPage(page++);
     if (!r.ok) return r;
     const rows = r.rows || [];
     allRows.push(...rows);
-    if (rows.length < pageSize) break;
-    page++;
+    if (rows.length < PAGE_SIZE) break;
   }
   return { ok: true, rows: allRows, total: allRows.length };
 }

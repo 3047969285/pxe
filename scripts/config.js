@@ -69,6 +69,20 @@ const CFG = {
   // ---- cron 自动入库时扫描的 Excel 目录 ----
   autoInbox: path.join(__dirname, '..', '输入'),
 
+  // ---- 规则人工审核（防止模型代替用户审核）----
+  //   reviewers        允许的审核人姓名；留空表示不限，但审核人仍必填
+  //   requireTerminal  true 时「规则 确认」必须由用户本人在终端里执行并输入审核人姓名，
+  //                    模型在后台调用会被拒绝（最严格）
+  //   blockSuspicious  true 时审核表存在疑点（非 Excel/WPS 保存、用时过短等）直接拒绝；
+  //                    false 时照常保存，但疑点写入审核日志并在每次出名单时提示
+  //   minReviewSeconds 出审核表到确认的最短合理用时（秒），低于此值记为疑点
+  review: {
+    reviewers: [],
+    requireTerminal: false,
+    blockSuspicious: false,
+    minReviewSeconds: 120,
+  },
+
   // ---- 数据权限说明（不在本配置中控制，由后端按身份管理）----
   // 管理员(admin)：五张表全量
   // 普通用户(本人姓名+身份证后四位)：本人资料和记录、本人单位名额、本单位计划

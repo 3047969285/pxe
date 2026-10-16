@@ -17,7 +17,7 @@ const FIELD_LABELS = (() => {
   // 展示用词以清晰为准，覆盖个别过短的别名
   Object.assign(labels, {
     seqNo: '序号', regionName: '地区', unitName: '单位', empName: '姓名', empId: '员工编号',
-    idCard: '身份证号', assistDate: '协理时间', hireDate: '入职时间', bRole: 'B角',
+    idCard: '身份证号', assistDate: '协理时间', hireDate: '任职时间', bRole: 'B角', leaderId: '人员标识',
     cadreLevel: '干部级别', staffGrade: '职员职级', isPartySec: '是否党支部书记',
     trainedRecords: '培训记录', totalHours: '累计学时', isProdHead: '是否生产分管负责人',
     planId: '计划编号', batchId: '批次标识', planYear: '计划年度', className: '班次名称',

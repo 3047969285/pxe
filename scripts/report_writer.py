@@ -4,10 +4,14 @@
 report_writer.py —— 培小e 报告生成（建议名单 Excel/HTML、统计看板 HTML）
 
 用法：
-  python report_writer.py --advice <建议数据json> <输出目录>
+  python report_writer.py --advice <建议数据json|-> <输出目录>
       生成 培小e建议名单.xlsx 与 培小e建议名单.html
   python report_writer.py --dashboard <看板数据json> <输出html路径>
       生成统计看板 HTML（占位符替换）
+  python report_writer.py --review <审核数据json|-> <输出xlsx路径>
+      生成规则审核表
+  python report_writer.py --read-review <审核表xlsx>
+      读回规则审核表，输出 {"ok":true,"rows":[...]}
 
 输出 JSON：{"ok":true,"files":["...","..."]}
 """
@@ -451,6 +455,162 @@ def write_dashboard_html(path, data):
     return path
 
 
+# =========================================
+# 规则审核表（写出 / 读回）
+# =========================================
+REVIEW_GUIDE = [
+    "怎么审核",
+    "1. 在「审核」表逐条核对：原文 → 中文复述 → 试算影响（剔除/加分了多少人、样例是谁）。",
+    "2. 每个条款在任意一行的「审核结果」选：确认 / 修改 / 驳回，并在同一行「审核人」填写本人姓名（同一条款填一行即可）。",
+    "   确认：照表格当前内容生效；修改：直接改条件行后选修改，以改后的为准；驳回：写清意见，退回重新识别。",
+    "3. 改条件：同一「分支」里同一「或组」的行是“且”，不同或组是“或”；字段/指标、运算从下拉框选。",
+    "   加条件：复制该条款的一行，改分支/或组/条件；删条件：整行删除。",
+    "4. 动作：准入 = 必须满足否则剔除；剔除 = 满足就剔除；加分 = 满足就加「分值」（同一条款取第一个命中的加分分支）。",
+    "5. 标记为「未识别」的行表示这句话没有变成筛选条件；确认即表示同意不执行，要执行请改成条件行。",
+    "6. 「⚠」提示试算结果异常（无人受影响或全部剔除），请重点核对。",
+    "7. 请用 Excel 或 WPS 打开、修改并保存本文件；程序改写的文件会被记为疑点。",
+    "8. 审核完保存，执行：node index.js 规则 确认 \"<本文件路径>\"。已确认的条款下次不用再审，只有原文变化的才会重新出现。",
+]
+
+STATUS_FILL = {"待审核": "FFF4CC", "驳回": "FDE2E1", "已确认": "E8F5E9"}
+# 审核表签发者：Excel/WPS 保存后「最后保存人」会变成用户名，仍是它说明文件未经 Excel/WPS 保存
+ISSUER = "培小e"
+
+
+def write_review_excel(path, data):
+    if openpyxl is None:
+        raise RuntimeError("未安装 openpyxl，无法生成审核表")
+    from openpyxl.worksheet.datavalidation import DataValidation
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "审核"
+    columns = data["columns"]
+    style_header(ws, columns)
+    widths = {"条款编号": 14, "来源": 13, "名称": 26, "适用期次": 22, "原文": 40, "状态": 8, "分支": 6,
+              "动作": 7, "分值": 6, "理由": 22, "或组": 6, "字段/指标": 20, "参数": 26, "运算": 8,
+              "值": 16, "中文复述": 44, "试算影响": 40, "标记": 24, "审核结果": 10, "审核人": 10, "意见": 26}
+    for index, name in enumerate(columns, start=1):
+        ws.column_dimensions[get_column_letter(index)].width = widths.get(name, 14)
+    for row in data["rows"]:
+        ws.append([row.get(name, "") for name in columns])
+        fill = STATUS_FILL.get(row.get("状态"))
+        line = ws.max_row
+        for index in range(1, len(columns) + 1):
+            c = ws.cell(row=line, column=index)
+            c.alignment = Alignment(vertical="top", wrap_text=True)
+            if fill:
+                c.fill = PatternFill("solid", fgColor=fill)
+        mark = ws.cell(row=line, column=columns.index("标记") + 1)
+        if mark.value:
+            mark.font = Font(color="C0392B", bold=True)
+
+    # 字段字典 + 下拉框来源
+    dic = wb.create_sheet("字段字典")
+    style_header(dic, ["名称", "种类", "类型", "说明"])
+    for item in data["dictionary"]["items"]:
+        dic.append(item)
+    dic.column_dimensions["A"].width = 22
+    dic.column_dimensions["D"].width = 80
+    dic.append([])
+    dic.append(["类型", "可用运算"])
+    for item in data["dictionary"]["ops"]:
+        dic.append(item)
+    lists = wb.create_sheet("下拉选项")
+    for col, values in enumerate([data["dictionary"]["allOps"], data["dictionary"]["actions"],
+                                  data["dictionary"]["decisions"]], start=1):
+        for r, value in enumerate(values, start=1):
+            lists.cell(row=r, column=col, value=value)
+    lists.cell(row=1, column=5, value="审核单号")
+    lists.cell(row=2, column=5, value=data.get("sheetId", ""))
+    lists.sheet_state = "hidden"
+    wb.properties.creator = ISSUER
+    wb.properties.lastModifiedBy = ISSUER
+
+    last = max(ws.max_row + 200, 500)
+    item_count = len(data["dictionary"]["items"]) + 1
+
+    def add_list(column_name, formula):
+        dv = DataValidation(type="list", formula1=formula, allow_blank=True)
+        letter = get_column_letter(columns.index(column_name) + 1)
+        dv.add(f"{letter}2:{letter}{last}")
+        ws.add_data_validation(dv)
+
+    add_list("字段/指标", f"=字段字典!$A$2:$A${item_count}")
+    add_list("运算", f"=下拉选项!$A$1:$A${len(data['dictionary']['allOps'])}")
+    add_list("动作", f"=下拉选项!$B$1:$B${len(data['dictionary']['actions'])}")
+    add_list("审核结果", f"=下拉选项!$C$1:$C${len(data['dictionary']['decisions'])}")
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{ws.max_row}"
+
+    guide = wb.create_sheet("说明", 0)
+    for line in REVIEW_GUIDE + ["", f"审核单号：{data.get('sheetId', '')}    年度：{data.get('year', '')}    "
+                                    f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"] \
+            + [f"{k}：{v}" for k, v in (data.get("overview") or {}).items()]:
+        guide.append([line])
+    guide.column_dimensions["A"].width = 120
+    guide["A1"].font = Font(bold=True, size=14)
+    wb.active = 1
+    wb.save(path)
+    return path
+
+
+def read_file_meta(path):
+    """审核表文件属性：保存程序、最后保存人、修改时间、文件哈希，用于判断是否经 Excel/WPS 由人保存"""
+    import hashlib
+    import re
+    import zipfile
+    meta = {"application": "", "lastModifiedBy": "", "modified": ""}
+    with open(path, "rb") as handle:
+        meta["sha256"] = hashlib.sha256(handle.read()).hexdigest()[:16]
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        app = z.read("docProps/app.xml").decode("utf-8", "ignore") if "docProps/app.xml" in names else ""
+        core = z.read("docProps/core.xml").decode("utf-8", "ignore") if "docProps/core.xml" in names else ""
+    for key, text, tag in [("application", app, "Application"), ("lastModifiedBy", core, "cp:lastModifiedBy"),
+                           ("modified", core, "dcterms:modified")]:
+        m = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", text, re.S)
+        if m:
+            meta[key] = html_lib.unescape(m.group(1).strip())
+    return meta
+
+
+def read_review_excel(path):
+    if openpyxl is None:
+        raise RuntimeError("未安装 openpyxl，无法读取审核表")
+    wb = openpyxl.load_workbook(path, data_only=True)
+    sheet_id = ""
+    if "下拉选项" in wb.sheetnames:
+        sheet_id = str(wb["下拉选项"].cell(row=2, column=5).value or "")
+    if "审核" not in wb.sheetnames:
+        raise RuntimeError("找不到「审核」工作表，请使用 规则 审核表 生成的文件")
+    ws = wb["审核"]
+    header = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
+    rows = []
+    for index, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if not any(v not in (None, "") for v in values):
+            continue
+        item = {"_row": index}
+        for name, value in zip(header, values):
+            if not name:
+                continue
+            if isinstance(value, datetime):
+                value = value.strftime("%Y-%m-%d")
+            elif isinstance(value, float) and value.is_integer():
+                value = int(value)
+            item[name] = value
+        rows.append(item)
+    meta = read_file_meta(path)
+    meta["sheetId"] = sheet_id
+    return rows, meta
+
+
+def load_json(source):
+    """读取数据 JSON；source 为 - 时从标准输入读取（不落过程文件）"""
+    if source == "-":
+        return json.loads(sys.stdin.buffer.read().decode("utf-8"))
+    with open(source, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -461,8 +621,7 @@ def main():
         if len(args) < 3:
             print(json.dumps({"ok": False, "error": "用法: --advice <json> <输出目录>"}, ensure_ascii=False))
             sys.exit(1)
-        with open(args[1], "r", encoding="utf-8") as handle:
-            data = json.load(handle)
+        data = load_json(args[1])
         out_dir = args[2]
         os.makedirs(out_dir, exist_ok=True)
         year = data.get("year", "")
@@ -478,10 +637,17 @@ def main():
         if len(args) < 3:
             print(json.dumps({"ok": False, "error": "用法: --dashboard <json> <输出html>"}, ensure_ascii=False))
             sys.exit(1)
-        with open(args[1], "r", encoding="utf-8") as handle:
-            data = json.load(handle)
+        data = load_json(args[1])
         path = write_dashboard_html(args[2], data)
         print(json.dumps({"ok": True, "files": [path]}, ensure_ascii=False))
+        return
+    if mode == "--review":
+        data = load_json(args[1])
+        print(json.dumps({"ok": True, "files": [write_review_excel(args[2], data)]}, ensure_ascii=False))
+        return
+    if mode == "--read-review":
+        rows, meta = read_review_excel(args[1])
+        print(json.dumps({"ok": True, "rows": rows, "meta": meta}, ensure_ascii=False, default=str))
         return
     print(json.dumps({"ok": False, "error": f"未知模式 {mode}"}, ensure_ascii=False))
     sys.exit(1)

@@ -7,7 +7,7 @@ const FIELD_ALIASES = {
     序号: 'seqNo', 地区: 'regionName', 所属地区: 'regionName', 单位: 'unitName', 单位名称: 'unitName',
     姓名: 'empName', 人员姓名: 'empName', 员工id: 'empId', 员工编号: 'empId', 员工号: 'empId', 编号: 'empId',
     身份证号: 'idCard', 身份证: 'idCard', 性别: 'gender', 年龄: 'age', 协理时间: 'assistDate',
-    入职时间: 'hireDate', 入职日期: 'hireDate',
+    入职时间: 'hireDate', 入职日期: 'hireDate', 任职时间: 'hireDate', 任职日期: 'hireDate',
     b角: 'bRole', 角色: 'bRole', 干部级别: 'cadreLevel', 干部层级: 'cadreLevel', 职员职级: 'staffGrade',
     是否为党支部书记: 'isPartySec', 培训记录: 'trainedRecords', 已参加培训班: 'trainedRecords',
     累计培训学时: 'totalHours', 总学时: 'totalHours', 是否为生产分管负责人: 'isProdHead', 备注: 'remark',

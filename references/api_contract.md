@@ -70,7 +70,7 @@
 
 各表业务字段：
 
-- `pxe_leader_info`：`seqNo` `regionName` `unitName` `empName` `empId` `idCard` `gender` `age` `assistDate` `bRole` `cadreLevel` `staffGrade` `isPartySec` `trainedRecords` `totalHours` `isProdHead` `remark`
+- `pxe_leader_info`：`seqNo` `regionName` `unitName` `empName` `empId` `idCard` `gender` `age` `assistDate` `hireDate` `bRole` `cadreLevel` `staffGrade` `isPartySec` `trainedRecords` `totalHours` `isProdHead` `remark`
 - `pxe_training_plan`：`batchId` `planYear` `seqNo` `className` `sessionNo` `trainPeriod` `startDate` `endDate` `trainPlace` `planCount` `targetGroup` `ruleDesc` `ruleKey` `remark`
 - `pxe_quota_alloc`：`planId` `unitName` `quotaCount` `remark`
 - `pxe_train_record`：`planId` `empId` `empName` `planYear` `className` `classType` `sessionNo` `startDate` `endDate` `hours` `unitAtTime` `dataSource` `remark`
