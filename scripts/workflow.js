@@ -24,8 +24,9 @@ const advisor = require('./ai_advisor');
 const review = require('./rule_review');
 
 const WRITER = path.join(__dirname, 'report_writer.py');
-// 影响名单结果的代码；任一改动都会改变代码指纹
-const ENGINE_FILES = ['ai_advisor.js', 'rule_dsl.js'];
+// 指纹递归覆盖 scripts 下全部 JS/Python 实现，并覆盖会影响规则编译的内置预设。
+// 因此编排、导入解析、规则引擎、接口适配和报告生成的实现变动都会留下痕迹。
+const ENGINE_DATA_FILES = ['rule_presets.json'];
 const LEDGER_FILE = path.join(path.dirname(dsl.LIBRARY_FILE), '审核日志.jsonl');
 const ISSUER = '培小e';
 // 快照里去掉的字段：敏感或与计算无关
@@ -53,7 +54,22 @@ function stable(value) {
 const hash = text => crypto.createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16);
 
 function codeFingerprint() {
-  return hash(ENGINE_FILES.map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n'));
+  function sourceFiles(dir) {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory() || (entry.isFile() && /\.(?:js|py)$/.test(entry.name)))
+      .sort((a, b) => (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)))
+      .flatMap(entry => {
+        const absolute = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules' || entry.name === '__pycache__' || entry.name === '.git') return [];
+          return sourceFiles(absolute);
+        }
+        return [path.relative(__dirname, absolute).split(path.sep).join('/')];
+      });
+  }
+  const files = [...new Set([...sourceFiles(__dirname), ...ENGINE_DATA_FILES])].sort();
+  const content = files.map(file => `${file}\0${fs.readFileSync(path.join(__dirname, file), 'utf8')}`).join('\0');
+  return hash(content);
 }
 
 function slim(rows, keyOf) {

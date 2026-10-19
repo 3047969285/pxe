@@ -49,7 +49,9 @@ function matchClassName(shortName, planName) {
   if (!shortName || !planName) {
     return false;
   }
-  if (shortName === planName) {
+  const shortText = String(shortName).normalize('NFKC').replace(/\s+/g, '');
+  const planText = String(planName).normalize('NFKC').replace(/\s+/g, '');
+  if (shortText === planText) {
     return true;
   }
   const rules = [
@@ -58,32 +60,96 @@ function matchClassName(shortName, planName) {
     [/县班子|县公司领导班子/, /县公司领导班子/],
     [/四级进修|四级领导人员进修/, /四级领导人员进修班/],
   ];
-  return rules.some(([short, full]) => short.test(shortName) && full.test(planName));
+  return rules.some(([short, full]) => short.test(shortText) && full.test(planText));
 }
 
-// 拉取计划表并建立 班次+期次 → planId 索引
+function normalizeYear(value) {
+  const text = String(value == null ? '' : value).normalize('NFKC').trim();
+  const match = /^(\d{4})(?:年|年度)?$/.exec(text);
+  return match ? match[1] : text;
+}
+
+function normalizeSession(value) {
+  const text = String(value == null ? '' : value).normalize('NFKC').replace(/\s+/g, '');
+  const match = /^(?:第)?([零〇一二两三四五六七八九十\d]+)(?:期)?$/.exec(text);
+  if (!match) return text;
+
+  const token = match[1];
+  let number;
+  if (/^\d+$/.test(token)) {
+    number = Number(token);
+  } else if (token.includes('十')) {
+    const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+    if (token === '十') number = 10;
+    else if (token.startsWith('十')) number = 10 + (digits[token.slice(1)] || 0);
+    else if (token.endsWith('十')) number = (digits[token[0]] || 0) * 10;
+    else if (token.length === 3) number = (digits[token[0]] || 0) * 10 + (digits[token[2]] || 0);
+  } else {
+    const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+    if (Object.prototype.hasOwnProperty.call(digits, token)) number = digits[token];
+  }
+  return Number.isFinite(number) ? `第${number}期` : text;
+}
+
+// 拉取年度、班次、期次和主键，供名额导入按三字段唯一定位计划
 async function loadPlanIndex(account, credential) {
   const result = await trainer.queryAll('pxe_training_plan',
     {}, account, credential);
   if (!result.ok) {
     return { ok: false, message: result.message || result.error };
   }
-  const plans = result.rows.map(row => ({
+  const plans = result.rows.filter(row => String(row.delFlag || '0') !== '2').map(row => ({
     planId: row.planId,
-    className: row.className,
-    sessionNo: row.sessionNo,
+    planYear: normalizeYear(row.planYear),
+    className: String(row.className == null ? '' : row.className).trim(),
+    sessionNo: normalizeSession(row.sessionNo),
   }));
   return { ok: true, plans };
 }
 
-// 按班次与期次查计划编号
-function findPlanId(plans, className, sessionNo) {
-  const exact = plans.find(p => p.className === className && p.sessionNo === sessionNo);
-  if (exact) {
-    return exact.planId;
+// 仅在 年度+班次+期次 唯一匹配时返回计划编号；错误由调用端整批拒绝。
+function findPlanId(plans, row) {
+  const planYear = normalizeYear(row.planYear);
+  const className = String(row.className == null ? '' : row.className).trim();
+  const sessionNo = normalizeSession(row.sessionNo);
+  const requested = `${planYear || '年度缺失'} / ${className || '班次缺失'} / ${sessionNo || '期次缺失'}`;
+  const missing = [];
+  if (!/^\d{4}$/.test(planYear)) missing.push('年度（需为四位年份）');
+  if (!className) missing.push('班次');
+  if (!sessionNo) missing.push('期次');
+  if (missing.length) {
+    return { ok: false, message: `${requested}：缺少或无法识别${missing.join('、')}` };
   }
-  const fuzzy = plans.find(p => matchClassName(className, p.className) && p.sessionNo === sessionNo);
-  return fuzzy ? fuzzy.planId : null;
+
+  const rowPlanId = String(row.planId == null ? '' : row.planId).trim();
+  if (rowPlanId) {
+    const idMatches = plans.filter(p => String(p.planId == null ? '' : p.planId).trim() === rowPlanId);
+    if (idMatches.length !== 1) {
+      return { ok: false, message: `${requested}：计划编号「${rowPlanId}」${idMatches.length ? '对应多条计划' : '不存在'}` };
+    }
+    const plan = idMatches[0];
+    const planClass = String(plan.className == null ? '' : plan.className).trim();
+    if (plan.planYear !== planYear || plan.sessionNo !== sessionNo || !matchClassName(className, planClass)) {
+      return { ok: false, message: `${requested}：显式计划编号「${rowPlanId}」与填写的年度、班次或期次不一致` };
+    }
+    return { ok: true, planId: plan.planId };
+  }
+
+  const sameYearAndSession = plans.filter(p => p.planYear === planYear && p.sessionNo === sessionNo);
+  const exact = sameYearAndSession.filter(p => String(p.className || '').trim().normalize('NFKC').replace(/\s+/g, '')
+    === className.normalize('NFKC').replace(/\s+/g, ''));
+  const candidates = exact.length ? exact : sameYearAndSession.filter(p => matchClassName(className, p.className));
+  if (!candidates.length) {
+    return { ok: false, message: `${requested}：未找到对应培训计划` };
+  }
+  if (candidates.length > 1) {
+    const list = candidates.map(p => `${p.className || '班次未命名'}（${p.planId || '计划编号缺失'}）`).join('、');
+    return { ok: false, message: `${requested}：匹配到多条培训计划，请先消除歧义：${list}` };
+  }
+  if (!candidates[0].planId) {
+    return { ok: false, message: `${requested}：培训计划缺少计划编号` };
+  }
+  return { ok: true, planId: candidates[0].planId };
 }
 
 // 分批写入
@@ -133,36 +199,35 @@ async function importFile({ file, table, wide, sheet, account, credential }) {
 
   // 名额分配：用户只填 年度+班次+期次，这里回填计划编号
   if (targetTable === 'pxe_quota_alloc') {
+    if (parsed.warnings && parsed.warnings.length) {
+      ui.fail(`名额数据存在必填项缺失，已取消整批导入：${parsed.warnings.slice(0, 8).join('；')}`
+        + (parsed.warnings.length > 8 ? `；另有 ${parsed.warnings.length - 8} 条` : ''));
+      return 1;
+    }
     const index = await loadPlanIndex(account, credential);
     if (!index.ok) {
       console.error(`读取培训计划失败: ${index.message}`);
       return 1;
     }
     const resolved = [];
-    const missing = new Set();
-    rows.forEach(row => {
-      // 已显式填了计划编号的，直接采用
-      let planId = row.planId;
-      if (!planId) {
-        planId = findPlanId(index.plans, row.className, row.sessionNo);
-      }
-      if (!planId) {
-        missing.add(`${row.planYear || ''}${row.className || ''}-${row.sessionNo || ''}`);
+    const errors = [];
+    rows.forEach((row, rowIndex) => {
+      const match = findPlanId(index.plans, row);
+      if (!match.ok) {
+        errors.push(`解析记录第 ${rowIndex + 1} 条：${match.message}`);
         return;
       }
       resolved.push({
-        planId,
+        planId: match.planId,
         unitName: row.unitName,
         quotaCount: row.quotaCount,
         remark: row.remark,
       });
     });
-    if (missing.size) {
-      ui.warn(`以下班次未匹配到培训计划，已跳过：${[...missing].join('、')}`);
-      if (!resolved.length) {
-        ui.fail('没有任何可入库的名额数据');
-        return 1;
-      }
+    if (errors.length) {
+      ui.fail(`培训计划匹配失败，已取消整批导入（${errors.length} 项）：${errors.slice(0, 8).join('；')}`
+        + (errors.length > 8 ? `；另有 ${errors.length - 8} 项` : ''));
+      return 1;
     }
     ui.info(`已按年度+班次+期次匹配到培训计划，有效 ${resolved.length} 条`);
     const pushed = await pushRows(targetTable, resolved, account, credential);

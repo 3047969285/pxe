@@ -121,6 +121,9 @@ function buildBody(action, options) {
     } else if (options.single) {
       body.data = Object.assign({}, options.single, auth);
     }
+  } else if (action === 'delete' && options.single) {
+    // 删除接口按单条实体主键定位，主键与凭据一起放在 data 中。
+    body.data = Object.assign({}, options.single, buildAuth(options.account, options.credential));
   }
   return body;
 }
@@ -154,6 +157,21 @@ async function update(options = {}) {
 // 软删除（del_flag=2）
 //   options: { table, single（含主键的实体）, account, credential }
 async function del(options = {}) {
+  const single = options.single;
+  const primaryKeys = {
+    [CFG.tables.leader]: 'leaderId',
+    [CFG.tables.plan]: 'planId',
+    [CFG.tables.quota]: 'quotaId',
+    [CFG.tables.record]: 'recordId',
+    [CFG.tables.rule]: 'ruleId',
+  };
+  const table = normalizeTable(options.table);
+  const primaryKey = primaryKeys[table];
+  const keyValue = single && typeof single === 'object' && !Array.isArray(single)
+    ? single[primaryKey] : undefined;
+  if (!primaryKey || keyValue === undefined || keyValue === null || keyValue === '') {
+    return { ok: false, error: `删除请求必须在 single 中提供主键 ${primaryKey || '字段'}` };
+  }
   return await request('delete', buildBody('delete', options));
 }
 

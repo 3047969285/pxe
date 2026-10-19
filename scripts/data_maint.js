@@ -260,7 +260,7 @@ async function deleteRecord(tableName, primaryKey, pkValue, auth) {
 
   const result = await api.del({
     table: tableName,
-    filters: [{ field: primaryKey, operator: 'EQ', value: pkValue }],
+    single: { [primaryKey]: pkValue },
     account: auth.account,
     credential: auth.credential,
   });
@@ -427,10 +427,10 @@ async function interactiveMaintenance(preFilePath, preAuth = null) {
 
 function getPrimaryKey(tableName) {
   const pkMap = {
-    [CFG.tables.leader]: 'leader_id',
-    [CFG.tables.plan]: 'plan_id',
-    [CFG.tables.quota]: 'quota_id',
-    [CFG.tables.record]: 'record_id',
+    [CFG.tables.leader]: 'leaderId',
+    [CFG.tables.plan]: 'planId',
+    [CFG.tables.quota]: 'quotaId',
+    [CFG.tables.record]: 'recordId',
   };
   return pkMap[tableName] || 'id';
 }
@@ -446,6 +446,11 @@ async function importDirect(filePath, tableName, account, credential, confirm = 
       return { ok: false, error: '无法自动识别表名，请指定 --table 参数' };
     }
   }
+  if (api.normalizeTable(tableName) === CFG.tables.quota) {
+    const error = '旧导入入口不支持名额导入，已停止写入；请使用 `node index.js 导入 <文件> --table 名额 [--wide]`，由新入口按年度+班次+期次匹配培训计划';
+    console.error(`[培小e] ${error}`);
+    return { ok: false, error };
+  }
   return await importExcel(filePath, tableName, auth, { confirm });
 }
 
@@ -454,9 +459,9 @@ async function updateDirect(tableName, filters, values, account, credential) {
   return await api.update({ table: tableName, filters, values, ...auth });
 }
 
-async function deleteDirect(tableName, filters, account, credential) {
+async function deleteDirect(tableName, single, account, credential) {
   const auth = { account: account || CFG.admin.account, credential: credential || CFG.admin.credential };
-  return await api.del({ table: tableName, filters, ...auth });
+  return await api.del({ table: tableName, single, ...auth });
 }
 
 module.exports = {

@@ -781,7 +781,7 @@ def parse_excel(filepath, table_name, mode="data", sheet_name=None):
 
 
 def parse_quota_wide(filepath, sheet_name=None):
-    """解析名额分配宽表并拍平为行式（班次 + 期次 + 单位 + 名额）"""
+    """解析名额分配宽表并拍平为行式（年度 + 班次 + 期次 + 单位 + 名额）"""
     if not os.path.exists(filepath):
         return {"ok": False, "error": f"文件不存在: {filepath}"}
     try:
@@ -817,6 +817,23 @@ def parse_quota_wide(filepath, sheet_name=None):
         wb.close()
         return {"ok": False, "error": "未找到含“单位”的表头行"}
 
+    # 宽表通常将年度写在班次/单位表头上方的标题行中，例如“2027年……名额分配表”。
+    # 只有找到唯一年度才继续，避免把跨年名额关联到错误计划。
+    title_text = ""
+    if class_row > 1:
+        title_text = "".join(
+            str(value or "")
+            for row in target.iter_rows(min_row=1, max_row=class_row - 1, values_only=True)
+            for value in row
+        )
+    years = {int(value) for value in re.findall(r"(?<!\d)(\d{4})(?!\d)", title_text)
+             if 2000 <= int(value) <= 2100}
+    if len(years) != 1:
+        wb.close()
+        return {"ok": False,
+                "error": "名额宽表标题区未包含唯一计划年度（如“2027年度”）；请在班次表头上方明确标注年度，或改用标准名额模板"}
+    plan_year = str(next(iter(years)))
+
     class_names = [str(v or "").strip() for v in
                    next(target.iter_rows(min_row=class_row, max_row=class_row, values_only=True), ())]
     session_names = [str(v or "").strip() for v in
@@ -844,7 +861,7 @@ def parse_quota_wide(filepath, sheet_name=None):
             count = row[index]
             if count is None or str(count).strip() == "":
                 continue
-            rows.append({"className": key[0], "sessionNo": key[1], "unitName": unit,
+            rows.append({"planYear": plan_year, "className": key[0], "sessionNo": key[1], "unitName": unit,
                          "quotaCount": int(count)})
     sheet_title = target.title
     wb.close()
